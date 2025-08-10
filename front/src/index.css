@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+body {
+  margin: 0;
+  font-family: "Inter", "sans-serif";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #111;
+  color: #fff;
+  height: auto;
+}
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background-color: #3a80e9;
+  color: #fff;
+}
+
+/* width */
+::-webkit-scrollbar {
+  width: 0.3rem;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #111;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #3a80e9;
+  border-radius: 3rem;
+}
+
+/* prevent pics copy from my site */
+img {
+	-webkit-user-drag: none;
+	-khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+}
+
+.grey-wrapper {
+  display: block;
+  background-color: #14171c;
+  margin: 1.5rem auto; 
+  margin: 0 auto; 
+  width: 90%; 
+  border-radius: 0.8rem;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

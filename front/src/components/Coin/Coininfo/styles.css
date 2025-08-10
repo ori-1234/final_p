@@ -1,0 +1,18 @@
+.info a{
+    border-bottom: 1.5px solid #fff;
+    color: #fff;
+}
+
+.info a:hover{
+    opacity: 0.8;
+    color: #3a80e9 !important;
+    border-bottom: 1.5px solid #3a80e9;
+}
+
+#special {
+    color: #888;
+}
+#special:hover {
+    cursor: pointer !important;
+    opacity: 0.75;
+}

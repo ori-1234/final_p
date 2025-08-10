@@ -1,0 +1,489 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "value": "gpt-4o",
+            "mode": "list",
+            "cachedResultName": "gpt-4o"
+          },
+          "options": {}
+        },
+        "id": "8e01508c-117f-4b50-bf91-26671febd8f6",
+        "name": "GPT 4o",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "position": [
+          1060,
+          220
+        ],
+        "typeVersion": 1.2,
+        "credentials": {
+          "openAiApi": {
+            "id": "<use-n8n-credential-id>",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {},
+        "id": "cdd6be79-022e-4ad3-a3a8-9894c0d3d9a6",
+        "name": "Think",
+        "type": "@n8n/n8n-nodes-langchain.toolThink",
+        "position": [
+          1240,
+          420
+        ],
+        "typeVersion": 1,
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "335458847"
+        },
+        "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+        "typeVersion": 1.3,
+        "position": [
+          1200,
+          240
+        ],
+        "id": "a04324bc-f3be-47b5-a16f-61a6a1369ea4",
+        "name": "Postgres Chat Memory1",
+        "credentials": {
+          "postgres": {
+            "id": "c4xNZGm6dRDgjIj1",
+            "name": "Postgres account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "inputSource": "passthrough"
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          260,
+          20
+        ],
+        "id": "382a5f6b-426b-4c99-b97a-bcf7179c9ac8",
+        "name": "Workflow Trigger"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.BACKEND_N8N_WEBHOOK_URL || 'http://backend:8000/api/analysis/n8n-webhook/' }}",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "analysis",
+                "value": "={{ $('Parse1').first().json }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2000,
+          20
+        ],
+        "id": "7a2a1ec4-f9da-4115-891b-fa7f84df3442",
+        "name": "HTTP Request"
+      },
+      {
+        "parameters": {
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"stockSymbol\": \"סימול\",\n  \"analysisDate\": \"DD/MM/YYYY\",\n  \"recommendationClass\": \"positive/neutral/negative\",\n  \"recommendationTitle\": \"כותרת המלצה בעברית\",\n  \"recommendationText\": \"הסבר מפורט של ההמלצה בעברית\",\n  \"bullishCount\": 0,\n  \"neutralCount\": 0, \n  \"bearishCount\": 0,\n  \"bullishHeight\": 0,\n  \"neutralHeight\": 0,\n  \"bearishHeight\": 0,\n  \"overallSentiment\": \"חיובי/נייטרלי/שלילי\",\n  \"Recommendation\": \"ממליץ לקנות/ ממליץ לחכות/ ממליץ למכור\",\n  \"sentimentScore\": 0.00,\n  \"chartImageUrl\": \"URL_PLACEHOLDER\",\n  \"technicalAnalysis\": \"ניתוח טכני מפורט בעברית עם תגי <p>\",\n  \"topArticles\": [\n    {\n      \"title\": \"כותרת המאמר\",\n      \"url\": \"כתובת URL של המאמר\",\n      \"source\": \"שם המקור\",\n      \"date\": \"DD/MM/YYYY\",\n      \"sentimentClass\": \"bullish/neutral/bearish\",\n      \"sentimentHebrew\": \"חיובי-חזק/חיובי-חלש/נייטרלי/שלילי-חלש/שלילי-חזק\"\n    }\n  ],\n  \"hotTopics\": [\n    {\n      \"topic\": \"שם הנושא בעברית\",\n      \"article_count\": 0,\n      \"average_relevance\": \"0.00\"\n    }\n  ]\n}"
+        },
+        "id": "92b7df9a-332f-4069-b386-3695822a1914",
+        "name": "Structured Output Parser1",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "position": [
+          1380,
+          420
+        ],
+        "typeVersion": 1.2,
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "// Get the initial data (sentiment, technicals, etc.)\nconst baseData = $(\"Workflow Trigger\").first().json;\n\n// Get AI Agent output and parse it\nlet aiOutputRaw = $input.first().json.output;\nlet aiOutput;\ntry {\n  aiOutput = JSON.parse(aiOutputRaw);\n} catch (e) {\n  throw new Error(\"Failed to parse AI Agent output: \" + e.message);\n}\n\n// Merge all data into one combined object\nconst combined = {\n  ticker: baseData.ticker,\n  symbol_id: baseData.symbol_id,\n  timestamp: baseData.timestamp,\n  sentiment_analysis: baseData.sentiment_analysis,\n  technical_analysis: baseData.technical_analysis,\n  strategy_analysis: {\n    recent_trends: baseData.recent_trends,\n    multi_timeframe_strategy: aiOutput.analysis?.strategy_analysis?.multi_timeframe_strategy || {},\n    key_factors: aiOutput.analysis?.strategy_analysis?.key_factors || null\n  },\n};\n\nreturn [{ json: combined }];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1580,
+          20
+        ],
+        "id": "43e5c7d0-3900-4322-930d-6971527ff28c",
+        "name": "Parse1"
+      },
+      {
+        "parameters": {
+          "toolDescription": "Makes an HTTP request to RAG DataBase",
+          "method": "POST",
+            "url": "={{ $env.SUPABASE_EDGE_FUNC_URL }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"query\": {{ JSON.stringify($fromAI(\"query\", \"\", \"string\")) }}\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequestTool",
+        "typeVersion": 4.2,
+        "position": [
+          1360,
+          240
+        ],
+        "id": "f3fa14fc-737a-4628-9d7e-d1e20570c230",
+        "name": "HTTP Request2",
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "<use-n8n-credential-id>",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "retrieve-as-tool",
+          "tableName": {
+            "__rl": true,
+            "mode": "list",
+            "value": ""
+          },
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+        "typeVersion": 1.2,
+        "position": [
+          1620,
+          420
+        ],
+        "id": "351f193b-6e2e-4554-9460-dba5297c608c",
+        "name": "Supabase Vector Store1",
+        "credentials": {
+          "supabaseApi": {
+            "id": "GV6MTJfcSYd7o6Ni",
+            "name": "Supabase account"
+          }
+        },
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const rsi = Math.round($json.technical_analysis.indicators.rsi?.Current || 50);\nconst macd = $json.technical_analysis.analysis.Indicator_Synthesis.MACD?.toLowerCase() || \"unknown\";\nconst sentiment = $json.sentiment_analysis.label?.toLowerCase() || \"neutral\";\nconst topics = Object.keys($json.sentiment_analysis.topic_counts || {}).slice(0, 2).join(\", \");\n\n\nreturn [\n  {\n    query: `BTC strategy, RSI ${rsi} MACD ${macd} sentiment ${sentiment} topics: ${topics}`\n  }\n];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          20
+        ],
+        "id": "69fdaca2-ab72-45bc-9c10-64955697afa8",
+        "name": "Query"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "=```\n### 🔧 User Prompt for RAG Strategy Agent with Prediction Integration\n````\n\nYou are a senior quantitative crypto trader and strategist. You work with a Retrieval-Augmented Generation (RAG) system to analyze market data and provide **multi-timeframe trading strategies** with **detailed execution plans**.\n\n---\nProduce the full JSON per the contract above for:\n- stock_symbol: {{ $(\"Workflow Trigger\").first().json.stockSymbol }}\n- analysis_date: {{ $(\"Workflow Trigger\").first().json.timestamp }}\n- daily_features: {{ JSON.stringify($(\"Workflow Trigger\").first().json) }}\n- prediction (as provided): {{ $(\"Workflow Trigger\").first().json.prediction }}\n\nNotes:\n- Use ALL fields from daily_features where applicable.\n- Call $fromAI('query') with: {{ JSON.stringify($(\"Query\").first().json.query) }}\n- If any indicator is missing in daily_features, still populate the field with null/\"n/a\" and proceed.\n- Return a SINGLE JSON object only (no markdown/no prose).\n",
+          "options": {
+            "systemMessage": "=```\n### 🔧 System Prompt for RAG Strategy Agent with Prediction Integration\n````\n\nYou are a senior quantitative crypto strategist using mandatory RAG.\n\nINPUT JSON:\n{{ JSON.stringify($(\"Workflow Trigger\").first().json) }}\n\nUPSTREAM QUERY FOR RAG:\n{{ JSON.stringify($(\"Query\").first().json.query) }}\n\nRAG USAGE (REQUIRED):\n- Call $fromAI('query') with the provided query.\n- Use at least 3 retrieved cases (historical analogs, prior setups, or playbooks) to justify strategy.\n- Populate \"rag_used\": true and \"rag_evidence\": an array of up to 3 objects: { \"title\": \"...\", \"why_relevant\": \"...\" }.\n- If retrieval yields nothing, set rag_used: false and still return a full strategy (state fallback logic).\n\nOUTPUT CONTRACT (STRICT SINGLE JSON OBJECT, no markdown, no extra text):\n{\n  \"ticker\": \"<symbol>\",\n  \"timestamp\": \"<ISO8601>\",\n  \"prediction\": <0|1>,              // provided upstream; NEVER infer\n  \"analysis\": {\n    \"sentiment_analysis\": {\n      \"score\": <number>,\n      \"label\": \"<extremely_bearish|bearish|neutral|bullish|extremely_bullish>\",\n      \"confidence\": <number>,\n      \"distribution\": {\n        \"extremely_bearish\": <int>,\n        \"bearish\": <int>,\n        \"neutral\": <int>,\n        \"bullish\": <int>,\n        \"extremely_bullish\": <int>\n      },\n      \"topic_counts\": { \"<topic>\": <int>, ... },\n      \"top_articles\": [\n        { \"title\": \"...\", \"link\": \"...\", \"sentiment_score\": <number>, \"sentiment_label\": \"<...>\" }\n      ]\n    },\n    \"technical_analysis\": {\n      \"indicators\": {\n        \"RSI\": <number|null>,\n        \"MACD\": { \"macd\": <number|null>, \"signal\": <number|null>, \"hist\": <number|null>, \"cross\": \"<bullish|bearish|none>\" },\n        \"SMA\": { \"sma21\": <number|null>, \"sma50\": <number|null>, \"sma200\": <number|null> },\n        \"EMA\": { \"ema20\": <number|null>, \"ema50\": <number|null> },\n        \"Bollinger\": { \"upper\": <number|null>, \"middle\": <number|null>, \"lower\": <number|null>, \"band_width\": <number|null> },\n        \"ATR\": <number|null>,\n        \"Volume\": { \"obv_trend\": \"<up|down|flat|n/a>\", \"ma_comparison\": \"<above_ma|below_ma|n/a>\", \"spikes\": \"<notes or 'n/a'>\" }\n      },\n      \"support_levels\": [ <numbers or strings if unknown> ],\n      \"resistance_levels\": [ <numbers or strings if unknown> ],\n      \"candlestick_patterns\": [\n        { \"pattern\": \"<name or 'n/a'>\", \"signal\": \"<bullish|bearish|neutral>\", \"confidence\": <0..1> }\n      ],\n      \"trend_direction\": \"<uptrend|downtrend|range|unclear>\"\n    },\n    \"strategy_analysis\": {\n      \"multi_timeframe_strategy\": {\n        \"12H\": {\n          \"outlook\": \"<2-4 sentences>\",\n          \"strategy\": \"<2-4 sentences>\",\n          \"entry_points\": [ \"<level or condition>\", \"...\"],\n          \"exit_points\": [ \"<tp/sl or condition>\", \"...\"],\n          \"support_levels\": [ ... ],\n          \"resistance_levels\": [ ... ],\n          \"risk_management\": \"<2-4 sentences>\"\n        },\n        \"1D\": { ... same fields ... },\n        \"1W\": { ... same fields ... },\n        \"1M\": { ... same fields ... }\n      },\n      \"bullish_signals\": [ \"<>=3 items>\", \"...\", \"...\" ],\n      \"bearish_signals\": [ \"<>=3 items>\", \"...\", \"...\" ],\n      \"sentiment_drivers\": [ \"<>=3 items from news/themes>\", \"...\", \"...\" ],\n      \"key_strategy_factors\": [ \"<>=3 items tying sentiment+technicals+prediction+RAG>\", \"...\", \"...\" ],\n      \"actionable_takeaways\": [ \"<>=2 concise actions like 'wait for breakout above X' >\", \"...\" ]\n    },\n    \"rag_used\": true,\n    \"rag_evidence\": [\n      { \"title\": \"...\", \"why_relevant\": \"...\" }\n    ]\n  }\n}\n\nSTRICT RULES:\n- NEVER omit keys. If unknown, use \"n/a\" (strings) or null (numbers) but keep arrays non-empty.\n- For each timeframe, fill ALL fields including support/resistance (use nearest recent swing levels or label as \"n/a\").\n- \"candlestick_patterns\" must contain ≥1 item; if nothing detected, return [{\"pattern\":\"n/a\",\"signal\":\"neutral\",\"confidence\":0.2}].\n- \"bullish_signals\",\"bearish_signals\",\"sentiment_drivers\",\"key_strategy_factors\" must each have ≥3 items, never empty.\n- Reflect the external prediction explicitly in key_strategy_factors (aligns/contradicts).\n- Be concise and professional; numbers as numbers (not strings).\n"
+          }
+        },
+        "id": "7a2d962a-1dc1-47ae-9d41-230c3e5f48fa",
+        "name": "Strategy Analysis",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "position": [
+          1140,
+          20
+        ],
+        "typeVersion": 1.7,
+        "executeOnce": true,
+        "alwaysOutputData": true,
+        "retryOnFail": true,
+        "waitBetweenTries": 5000,
+        "maxTries": 5
+      },
+      {
+        "parameters": {
+          "path": "1dcd81f5-b7cf-41c2-a208-2f57f746d3a4",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          440,
+          240
+        ],
+        "id": "161f3c4f-8c85-45c0-8f78-06ef9caf2574",
+        "name": "Webhook",
+        "webhookId": "1dcd81f5-b7cf-41c2-a208-2f57f746d3a4",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          660,
+          240
+        ],
+        "id": "d9d5fae9-d40e-4f11-83cf-d5263e50c72f",
+        "name": "Edit Fields",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "value": "gpt-4o-mini",
+            "mode": "list",
+            "cachedResultName": "gpt-4o-mini"
+          },
+          "options": {}
+        },
+        "id": "3e1c62b0-f366-4198-9075-ef03ea12ab17",
+        "name": "GPT 4o1",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "position": [
+          1080,
+          -320
+        ],
+        "typeVersion": 1.2,
+        "credentials": {
+          "openAiApi": {
+            "id": "N8oInDsQgSB1cWCh",
+            "name": "OpenAi account"
+          }
+        },
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "335458847"
+        },
+        "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+        "typeVersion": 1.3,
+        "position": [
+          1220,
+          -300
+        ],
+        "id": "42db48a0-9f30-4fef-a81a-8dfcdc6ad42c",
+        "name": "Postgres Chat Memory",
+        "credentials": {
+          "postgres": {
+            "id": "c4xNZGm6dRDgjIj1",
+            "name": "Postgres account"
+          }
+        },
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "toolDescription": "Makes an HTTP request to RAG DataBase",
+          "method": "POST",
+          "url": "https://xbauwwcghvzodunhsylt.supabase.co/functions/v1/hyper-responder",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"query\": {{ JSON.stringify($fromAI(\"query\", \"\", \"string\")) }}\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequestTool",
+        "typeVersion": 4.2,
+        "position": [
+          1380,
+          -300
+        ],
+        "id": "8867589d-f58f-4d64-a54d-a39f3f6b0346",
+        "name": "HTTP Request3",
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "GV6MTJfcSYd7o6Ni",
+            "name": "Supabase account"
+          }
+        },
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "=```\n### 🔧 User Prompt for RAG Strategy Agent with Prediction Integration\n````\n\nYou are a senior quantitative crypto trader and strategist. You work with a Retrieval-Augmented Generation (RAG) system to analyze market data and provide **multi-timeframe trading strategies** with **detailed execution plans**.\n\n---\n\n### 📦 Input\n\nYou receive structured JSON data with:\n\n* Sentiment: score, label, confidence, topic\\_counts, top\\_articles\n* Technical indicators: RSI, MACD, SMA/EMA, Bollinger Bands, Fibonacci, ATR, volume, support/resistance\n* Narrative context: recent\\_trends.description and market\\_outlook\n* External prediction:\n\n  * `\"prediction\"`: output from an XGBoost model predicting price direction (1 = bullish, 0 = bearish).\n  * **Model accuracy is \\~54%**, so treat this as a **weak supporting signal only**.\n\n---\n\n### 🧰 Tool Access: RAG Data Tool\n\nYou **must** retrieve contextual market cases using:\n\n```js\n$fromAI('query')\n```\n\nQuery is pre-generated from upstream indicators and sentiment:\n\n```json\n{{ JSON.stringify($('Query').first().json.query) }}\n```\n\nExample:\n\n```json\n{\n  \"query\": \"BTC strategy, RSI 48 MACD bearish sentiment cautiously bullish topics: innovation, market analysis\"\n}\n```\n\nUse the result to enhance strategy formation across all timeframes.\n\n---\n\n### 🧠 Output\n\nYou must return a valid JSON in the following format:\n\n```json\n{\n  \"ticker\": \"<symbol>\",\n  \"timestamp\": \"<timestamp>\",\n  \"prediction\": <0 or 1>,\n  \"analysis\": {\n    \"sentiment_analysis\": { ... },\n    \"technical_analysis\": { ... },\n    \"strategy_analysis\": {\n      \"multi_timeframe_strategy\": {\n        \"12H\": {\n          \"outlook\": \"...\",\n          \"strategy\": \"...\",\n          \"entry_points\": [ \"...\", \"...\" ],\n          \"exit_points\": [ \"...\", \"...\" ],\n          \"support_levels\": [ \"...\", \"...\" ],\n          \"resistance_levels\": [ \"...\", \"...\" ],\n          \"risk_management\": \"...\"\n        },\n        \"1D\": { ... },\n        \"1W\": { ... },\n        \"1M\": { ... }\n      },\n      \"key_factors\": [\n        \"List key elements influencing strategy formation, e.g., 'MACD divergence', 'Fibonacci confluence', 'external model predicted bullish but sentiment is bearish'\"\n      ]\n    }\n  }\n}\n```\n\n---\n\n### 🚫 Constraints\n\n* No markdown or natural language\n* Do not infer or generate the prediction — use it as provided\n* Only return valid machine-readable JSON\n\n",
+          "options": {
+            "systemMessage": "=```\n### 🔧 System Prompt for RAG Strategy Agent with Prediction Integration\n````\n\nYou are provided with structured market data:\n\n```json\n{{ JSON.stringify($(\"Workflow Trigger\").first().json) }}\n```\n\n---\n\n### 🎯 Your Task\n\nProduce a **complete market analysis and detailed strategy** across 12H, 1D, 1W, and 1M timeframes using:\n\n* Sentiment (score, label, distribution, confidence, articles, topics)\n* Technical indicators (MACD, RSI, SMA/EMA, Bollinger Bands, Fibonacci, support/resistance, volume, ATR)\n* Narrative (recent\\_trends + market\\_outlook)\n* External model prediction (`prediction`: 0 or 1)\n\n---\n\n### 🧠 How to use the Prediction\n\n* `prediction = 1` → external model forecasts **bullish**\n* `prediction = 0` → external model forecasts **bearish**\n* Accuracy of model ≈ 54% → treat as **low-confidence support**, not a primary signal.\n* Use only as **a tie-breaker or confirming input** alongside sentiment and technicals.\n* Reflect use of prediction in `key_factors` field (e.g., “external model aligns with RSI/MACD”, or “model contradicts sentiment”).\n\n---\n\n### 🛠️ Strategy Output Must Include:\n\nFor each timeframe (12H, 1D, 1W, 1M):\n\n* `outlook`: Market sentiment and direction (2-4 sentences)\n* `strategy`: Recommendation (accumulate, hold, sell, short, etc.) (2-4 sentences)\n* `entry_points`: Ideal price levels or conditions to enter positions\n* `exit_points`: Target levels for profit-taking or stop\n* `support_levels` and `resistance_levels`: Key horizontal levels\n* `risk_management`: Stop-loss ideas, volatility considerations (2-4 sentences)\n\n---\n\n### 📌 Also Include:\n\n* `bullish_signals`: sentiment/technical/confluence for upside\n* `bearish_signals`: downside risks\n* `sentiment_drivers`: dominant narratives\n* `key_factors`: logic that ties sentiment, technicals, prediction, and context into one unified view\n\n---\n\n### 🚫 Do Not:\n\n* Generate or guess the prediction — use as-is\n* Include markdown or natural language\n* Omit `support_levels` and `resistance_levels`\n* Ignore retrieved context\n\nOutput must be **single, clean JSON** for automated use."
+          }
+        },
+        "id": "bce1d5e5-ff31-4b95-8860-da1cef6708e4",
+        "name": "Strategy Analysis1",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "position": [
+          1160,
+          -520
+        ],
+        "typeVersion": 1.7,
+        "executeOnce": true,
+        "alwaysOutputData": true,
+        "retryOnFail": true,
+        "waitBetweenTries": 5000,
+        "maxTries": 5,
+        "disabled": true
+      }
+    ],
+    "connections": {
+      "GPT 4o": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Strategy Analysis",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Think": {
+        "ai_tool": [
+          []
+        ]
+      },
+      "Postgres Chat Memory1": {
+        "ai_memory": [
+          [
+            {
+              "node": "Strategy Analysis",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse1": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request2": {
+        "ai_tool": [
+          [
+            {
+              "node": "Strategy Analysis",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase Vector Store1": {
+        "ai_tool": [
+          []
+        ]
+      },
+      "Query": {
+        "main": [
+          [
+            {
+              "node": "Strategy Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Strategy Analysis": {
+        "main": [
+          [
+            {
+              "node": "Parse1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Edit Fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Edit Fields": {
+        "main": [
+          []
+        ]
+      },
+      "GPT 4o1": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Strategy Analysis1",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Postgres Chat Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "Strategy Analysis1",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request3": {
+        "ai_tool": [
+          [
+            {
+              "node": "Strategy Analysis1",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "3fbcda4c054baf3420fff33d904e66bec4d04f59505e1e071d6362b8c29258ba"
+    }
+  }

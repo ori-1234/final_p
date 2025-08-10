@@ -1,0 +1,36 @@
+a {
+    color: #888;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+a:hover {
+    color: white;
+    transition: all 0.3s;
+}
+
+.mobile-drawer {
+    display: none;
+}
+
+.disabled-link {
+    color: #666;
+    cursor: not-allowed;
+    text-decoration: none;
+    opacity: 0.6;
+  }
+
+@media only screen and (max-width: 800px){
+    a{
+        font-size: 0.8rem;
+    }
+    .logo {
+        font-size: 1rem;
+    }
+    .links {
+        display: none;
+    }
+    .mobile-drawer {
+        display: block;
+    }
+}

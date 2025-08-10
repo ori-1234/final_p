@@ -1,0 +1,707 @@
+{
+    "nodes": [
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          3800,
+          -240
+        ],
+        "id": "7fd8075b-6e23-4f70-9be6-8c5ff89ceb8a",
+        "name": "When clicking ‘Execute workflow’"
+      },
+      {
+        "parameters": {
+          "operation": "pdf",
+          "options": {
+            "maxPages": 1000
+          }
+        },
+        "id": "adc30088-e403-42e9-93cc-06483ce450fc",
+        "name": "Extract from PDF",
+        "type": "n8n-nodes-base.extractFromFile",
+        "typeVersion": 1,
+        "position": [
+          4940,
+          -220
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "download",
+          "fileId": {
+            "__rl": true,
+            "value": "1MrvOod24fqlBCOftK2Qd-TEjpvxKozBZ",
+            "mode": "list",
+            "cachedResultName": "paper_10.pdf",
+            "cachedResultUrl": "https://drive.google.com/file/d/<redacted>/view?usp=drivesdk"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleDrive",
+        "typeVersion": 3,
+        "position": [
+          4040,
+          240
+        ],
+        "id": "5014e610-9e6e-44f6-9229-46e92f2ddad4",
+        "name": "Google Drive",
+        "alwaysOutputData": true,
+        "executeOnce": false,
+        "credentials": {
+          "googleDriveOAuth2Api": {
+            "id": "DunhAxc70QwJQRIM",
+            "name": "Google Drive account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// הגדרות\nconst text = $(\"Code1\").first().json.content || '';\n\n// const paper_id = $(\"Google Drive\").first().binary.data.fileName;\n\n// הגדרות Chunk אופטימליות  \nconst chunkSize = 500;  // קטן יותר\nconst overlap = 50;     // overlap קטן יותר\n\n// חיתוך לפי סוף משפט\nconst sentences = text.split(/(?<=[.!?])\\s+/);\nlet chunks = [];\nlet currentChunk = '';\n\nfor (let sentence of sentences) {\n  if ((currentChunk + sentence).length <= chunkSize) {\n    currentChunk += sentence + ' ';\n  } else {\n    if (currentChunk.trim()) {\n      chunks.push(currentChunk.trim());\n    }\n    currentChunk = sentence + ' ';\n  }\n}\nif (currentChunk.trim()) {\n  chunks.push(currentChunk.trim());\n}\n\n// יצירת chunks עם מזהים ומבנה ברור\nconst finalChunks = [];\nfor (let i = 0; i < chunks.length; i++) {\n  const current = chunks[i];\n  const overlapText = i > 0 ? chunks[i - 1].slice(-overlap) : '';\n  \n  finalChunks.push({\n    json: {\n      // paper_id: paper_id,\n      chunk_id: i + 1,\n      content: (overlapText + ' ' + current).trim(),\n      clean_content: current  // בלי overlap\n    }\n  });\n}\n\nreturn finalChunks;"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5700,
+          -220
+        ],
+        "id": "5fd20829-72f2-403f-9463-9db402cb6be1",
+        "name": "Create Text Chunks1"
+      },
+      {
+        "parameters": {
+          "jsCode": "let text = $input.first().json.text || \"\";\n\n// 1. הסרת חלקים של References ו-Appendices\ntext = text.replace(/(?=References)[\\s\\S]*/i, '');  // מסיר כל מה שמתחיל ב-\"References\"\ntext = text.replace(/(?=Appendix|Appendices)[\\s\\S]*/i, ''); // מסיר כל מה שמתחיל ב-\"Appendix\"\n\n// 2. הסרת טבלאות ותוויות LaTeX\ntext = text\n  .replace(/\\\\begin\\{table\\}[\\s\\S]*?\\\\end\\{table\\}/gi, '')  // טבלאות\n  .replace(/\\\\begin\\{figure\\}[\\s\\S]*?\\\\end\\{figure\\}/gi, '') // פיגורות\n  .replace(/\\\\section\\*?\\{.*?\\}/gi, '')  // כותרות \\section\n  .replace(/\\\\subsection\\*?\\{.*?\\}/gi, '') // כותרות \\subsection\n  .replace(/\\\\[a-zA-Z]+\\{.*?\\}/g, '') // פקודות LaTeX עם {}\n  .replace(/\\\\[a-zA-Z]+/g, '');       // פקודות LaTeX פשוטות\n\n// 3. הסרת תווים לא קריאים (שאינם printable)\ntext = text.replace(/[^ -~\\n]/g, ' ');\n\n// 4. הסרת רווחים כפולים ושורות מיותרות\ntext = text\n  .replace(/\\n\\s*\\n+/g, '\\n')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nreturn [{ json: { content: text } }];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5160,
+          -220
+        ],
+        "id": "ccfad977-1368-4884-b80e-ac40367720de",
+        "name": "Code1"
+      },
+      {
+        "parameters": {
+          "batchSize": 15,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          5940,
+          -220
+        ],
+        "id": "e708ecf2-5be9-40f9-8a75-314fa9247666",
+        "name": "Loop Over Items2"
+      },
+      {
+        "parameters": {
+          "jsCode": "// שליפת ההודעה הראשונה\nconst rawContent = $input.first().json.output.chunks;\n\n\n// יצירת פלט בפורמט נוח לשימוש\nconst results = rawContent.map(chunk => ({\n  chunk_id: chunk.chunk_id,\n  paragraph: chunk.paragraph,\n  context: chunk.context\n}));\n\nreturn results.map(item => ({ json: item }));\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6480,
+          -20
+        ],
+        "id": "0b64e7ce-005e-4ba8-b1c1-00d1bdfdcf39",
+        "name": "Code2"
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-4o-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-4O-MINI"
+          },
+          "messages": {
+            "values": [
+              {
+                "content": "You are a professional summarization agent.\nYour role is to:\n1. Read and analyze the full document (provided as context).\n2. Produce a **professional and concise summary** (12–16 sentences) of the full document, covering purpose, methodology, results, and main conclusions.\n3. Use clear, academic, and precise language.\n4. Return the summary in this strict JSON format:\n{\n  \"document_summary\": \"<high-level professional summary>\"\n}",
+                "role": "system"
+              },
+              {
+                "content": "={{ $json.content }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 1.8,
+        "position": [
+          5360,
+          -220
+        ],
+        "id": "0d74bea5-b6ef-4399-bb60-77d8e6e2bb7e",
+        "name": "OpenAI",
+        "alwaysOutputData": true,
+        "credentials": {
+          "openAiApi": {
+            "id": "<use-n8n-credential-id>",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// איסוף כל התוצאות מכל הbatches\nconst allResults = $input.all();\n\nreturn [{\n  json: {\n    total_embedded: allResults.length,\n    embedding_complete: true,\n    timestamp: new Date().toISOString(),\n    message: `Successfully embedded ${allResults.length} document chunks into Supabase vector store`\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4720,
+          -440
+        ],
+        "id": "b35c439d-9e81-4b13-8c93-e9d422c9a3ac",
+        "name": "Final Summary"
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "id": "2e0a3bc3-04ca-4d37-a86b-8ddfb8548d92",
+        "name": "Embeddings OpenAI2",
+        "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+        "typeVersion": 1.2,
+        "position": [
+          7000,
+          20
+        ],
+        "credentials": {
+          "openAiApi": {
+            "id": "N8oInDsQgSB1cWCh",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "insert",
+          "tableName": {
+            "__rl": true,
+            "value": "strategy_analysis",
+            "mode": "list",
+            "cachedResultName": "strategy_analysis"
+          },
+          "embeddingBatchSize": 550,
+          "options": {
+            "queryName": "match_documents"
+          }
+        },
+        "id": "bbb1342e-4004-42a4-91c4-505164d0eee8",
+        "name": "Supabase Vector Store2",
+        "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+        "typeVersion": 1.2,
+        "position": [
+          7080,
+          -220
+        ],
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "<use-n8n-credential-id>",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+        "typeVersion": 1,
+        "position": [
+          7140,
+          -20
+        ],
+        "id": "71d111d3-aa7a-4ca1-895f-ebd8c0411ef4",
+        "name": "Default Data Loader2"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ JSON.stringify($input.all()) }}",
+          "hasOutputParser": true,
+          "options": {
+            "systemMessage": "=You are a contextual analysis specialist.\n\nFor each text chunk in this batch, provide a brief contextual explanation (1 sentence).\n\nDocument context: {{ JSON.parse($('OpenAI').item.json.message.content).document_summary }}\n\nRespond in JSON format:\n{\n  \"chunks\": [\n    {\n      \"chunk_id\": 1,\n      \"paragraph\": \"<original chunk text>\",\n      \"context\": \"<brief explanation>\"\n    }\n  ]\n}"
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 2,
+        "position": [
+          6120,
+          -20
+        ],
+        "id": "cba55f23-4b50-4f91-bf2b-a15c092e8bc4",
+        "name": "AI Agent",
+        "executeOnce": true,
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "mode": "list",
+            "value": "gpt-4o-mini"
+          },
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.2,
+        "position": [
+          6060,
+          240
+        ],
+        "id": "fe9b47a8-de91-4f84-b42f-ea594efaa9fd",
+        "name": "OpenAI Chat Model",
+        "credentials": {
+          "openAiApi": {
+            "id": "N8oInDsQgSB1cWCh",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "aE2ibXdbhwTWxF2M"
+        },
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.3,
+        "position": [
+          6220,
+          240
+        ],
+        "id": "a8a7b41f-81d0-4347-b106-ed004686f064",
+        "name": "Simple Memory"
+      },
+      {
+        "parameters": {
+          "schemaType": "manual",
+          "inputSchema": "[\n  {\n    \"message\": {\n      \"content\": {\n        \"chunks\": [\n          {\n            \"chunk_id\": 1,\n            \"paragraph\": \"Under review as a conference paper at ICLR 2023 DEEP REINFORCEMENT LEARNING FOR CRYPTOCUR- RENCY TRADING: PRACTICAL APPROACH TO AD- DRESS BACKTEST OVERFITTING Anonymous authors Paper under double-blind review ABSTRACT Designing profitable and reliable trading strategies is challenging in the highly volatile cryptocurrency market.\",\n            \"context\": \"This section introduces the paper as an overview under review at ICLR 2023, outlining the central issue of formulating effective trading strategies in the unpredictable cryptocurrency market.\"\n          }\n        ]\n      }\n    }\n  }\n]\n"
+        },
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.2,
+        "position": [
+          6400,
+          240
+        ],
+        "id": "8f8b27fc-628d-4390-9990-e30e6e52d479",
+        "name": "Structured Output Parser"
+      },
+      {
+        "parameters": {
+          "separator": "#SEP#",
+          "chunkSize": 550
+        },
+        "type": "@n8n/n8n-nodes-langchain.textSplitterCharacterTextSplitter",
+        "typeVersion": 1,
+        "position": [
+          7200,
+          140
+        ],
+        "id": "8501dced-7a27-4386-b103-c381c5044ee2",
+        "name": "Character Text Splitter"
+      },
+      {
+        "parameters": {
+          "jsCode": "const allChunks = $input.all();\n// const paperId = $(\"Create Text Chunks1\").first().json.paper_id;\n\nconst documentsForEmbedding = allChunks.map((chunk, index) => {\n  const paragraph = chunk.json.paragraph;\n  const context = chunk.json.context;\n  const combinedText = `${context}: ${paragraph}`;  // טקסט לצורך content\n\n  return {\n    json: {\n      content: combinedText, // ישמש גם ל־embedding וגם ל־fts\n      embedding: null,       // אם אתה מבצע embedding בנפרד, תשאיר null כאן\n      metadata: {\n        // paper_id: paperId,\n        chunk_id: chunk.json.chunk_id || index + 1,\n        paragraph: paragraph,\n        context: context,\n        created_at: new Date().toISOString()\n      }\n    }\n  };\n});\n\nreturn documentsForEmbedding;\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6240,
+          -240
+        ],
+        "id": "54461a41-1da7-4640-8c11-0e701054e6a1",
+        "name": "Parse"
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.all();\n\nlet embeddedData = '';\n\nfor (const item of data) {\n  const content = item.json.content;\n  embeddedData += content + '#SEP#';\n}\n\nreturn [{ json: { data: embeddedData } }];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6820,
+          -220
+        ],
+        "id": "fc3c6fa1-9371-4bbc-9bec-3fa1e27919bb",
+        "name": "Prepare for Embedding"
+      },
+      {
+        "parameters": {
+          "url": "http://export.arxiv.org/api/query?search_query=all:(crypto+trading+strategy)+OR+all:(cryptocurrency+trading)&start=1&max_results=20&sortBy=relevance&sortOrder=descending",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4020,
+          -240
+        ],
+        "id": "6fee2851-444c-4980-aed3-d68671f8d229",
+        "name": "HTTP Request"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.first().json.data;\nconst results = [];\n\nconst linkMatches = items.match(/<link\\s+[^>]*type=\"application\\/pdf\"[^>]*>/g);\n\nif (linkMatches) {\n  linkMatches.forEach((linkTag,index) => {\n    const hrefMatch = linkTag.match(/href=\"([^\"]+)\"/);\n    if (hrefMatch) {\n      results.push({\n        json: {\n          pdf_link: hrefMatch[1]\n        }\n      });\n    }\n  });\n}\n\nreturn results;\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4220,
+          -240
+        ],
+        "id": "91e4bf64-c792-400b-ad9d-f47822354cae",
+        "name": "Code"
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          4440,
+          -240
+        ],
+        "id": "209857a8-9fbe-46ce-8d1e-1ceacdf3b07c",
+        "name": "Loop Over Items"
+      },
+      {
+        "parameters": {
+          "url": "={{ $json.pdf_link }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4720,
+          -220
+        ],
+        "id": "1cf01ae6-dc7f-429d-b53f-80630d2a4593",
+        "name": "HTTP Request1"
+      },
+      {
+        "parameters": {
+          "batchSize": 125,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          6500,
+          -240
+        ],
+        "id": "30238a25-ed15-451c-b7e2-8c2e663f5832",
+        "name": "Loop Over Items1",
+        "executeOnce": false
+      },
+      {
+        "parameters": {
+          "resource": "fileFolder",
+          "queryString": "jahel",
+          "returnAll": true,
+          "filter": {},
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleDrive",
+        "typeVersion": 3,
+        "position": [
+          4980,
+          420
+        ],
+        "id": "2969dd06-6203-49a9-acd3-12998febbd25",
+        "name": "Google Drive1",
+        "executeOnce": true,
+        "alwaysOutputData": true,
+        "credentials": {
+          "googleDriveOAuth2Api": {
+            "id": "DunhAxc70QwJQRIM",
+            "name": "Google Drive account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "When clicking ‘Execute workflow’": {
+        "main": [
+          [
+            {
+              "node": "Google Drive1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract from PDF": {
+        "main": [
+          [
+            {
+              "node": "Code1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google Drive": {
+        "main": [
+          []
+        ]
+      },
+      "Create Text Chunks1": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code1": {
+        "main": [
+          [
+            {
+              "node": "OpenAI",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items2": {
+        "main": [
+          [
+            {
+              "node": "Parse",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code2": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI": {
+        "main": [
+          [
+            {
+              "node": "Create Text Chunks1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Embeddings OpenAI2": {
+        "ai_embedding": [
+          [
+            {
+              "node": "Supabase Vector Store2",
+              "type": "ai_embedding",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase Vector Store2": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Default Data Loader2": {
+        "ai_document": [
+          [
+            {
+              "node": "Supabase Vector Store2",
+              "type": "ai_document",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Agent": {
+        "main": [
+          [
+            {
+              "node": "Code2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Simple Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Structured Output Parser": {
+        "ai_outputParser": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_outputParser",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Character Text Splitter": {
+        "ai_textSplitter": [
+          [
+            {
+              "node": "Default Data Loader2",
+              "type": "ai_textSplitter",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare for Embedding": {
+        "main": [
+          [
+            {
+              "node": "Supabase Vector Store2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request": {
+        "main": [
+          [
+            {
+              "node": "Code",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items": {
+        "main": [
+          [
+            {
+              "node": "Final Summary",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "HTTP Request1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request1": {
+        "main": [
+          [
+            {
+              "node": "Extract from PDF",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items1": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Prepare for Embedding",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "3fbcda4c054baf3420fff33d904e66bec4d04f59505e1e071d6362b8c29258ba"
+    }
+  }

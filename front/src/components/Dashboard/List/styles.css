@@ -1,0 +1,92 @@
+td {
+    display: flex;
+    flex: 1;
+    flex-direction: row;
+    text-align: left;
+    width: 18%;
+}
+
+
+@media only screen and (max-width: 950px) {
+    .trend-style {
+       
+        display: none;
+  
+        
+    }
+}
+
+@media only screen and (max-width: 800px) {
+    td {
+        text-align: left;
+        display: flex;
+        flex: 1;
+        flex-direction: row;
+        
+    }
+}
+
+@media only screen and (max-width: 645px) {
+    .trend-style {
+        display: none; 
+    }
+    .coin-logo {
+        width: 2rem;
+        height: 2rem;
+    }
+    .sym {
+        font-size: 0.9rem;
+        margin-top: 0;
+    }
+    .name {
+        font-size: 0.8rem;
+        margin-top: 0;
+    }
+    .price-change {
+        font-size: 0.7rem;
+        min-width: 50px;
+    }
+}
+
+@media only screen and (min-width: 700px) {
+    .mobile-market-cap {
+        display: none;
+    }
+    .mobile-price {
+        display: none;
+    }
+}
+
+@media only screen and (max-width: 700px) {
+    .market-cap {
+        display: none;
+    }
+    .price {
+        display: none;
+    }
+}
+
+@media only screen and (max-width: 440px) {
+    .coin-logo {
+        display: block;
+    }
+    .mobile-market-cap {
+        display: none;
+    }
+    .mobile-price {
+        display: flex;
+        align-items:end;
+        text-align: end;
+        justify-content: end;
+        font-size: 0.9rem;
+    }
+    .trend-style {
+        display:block;
+        min-width: 31px;
+        min-height: 4px;      
+    }
+    .name {
+        display: none;
+    }
+
+}

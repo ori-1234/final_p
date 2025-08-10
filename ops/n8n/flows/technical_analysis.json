@@ -1,0 +1,633 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "formTitle": "Advance Stock Analysis",
+          "formDescription": "Please enter the company’s NASDAQ ticker symbol (e.g. AAPL) to get a weekly email with combined technical-and-news sentiment analysis from our AI agent",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "ticker",
+                "placeholder": "BTC",
+                "requiredField": true
+              }
+            ]
+          },
+          "responseMode": "lastNode",
+          "options": {
+            "appendAttribution": true,
+            "respondWithOptions": {
+              "values": {
+                "formSubmittedText": "Success! Check your inbox (or spam folder) for your analysis report."
+              }
+            }
+          }
+        },
+        "id": "932191d3-ca17-4062-bb7b-2a67e29b2729",
+        "name": "On form submission",
+        "type": "n8n-nodes-base.formTrigger",
+        "position": [
+          -460,
+          340
+        ],
+        "webhookId": "79520027-d875-4ca3-a533-614bfca5e5b1",
+        "typeVersion": 2.2,
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "// Get historical price data\nconst data = $(\"Check Next Feature\").first().json;\nconst allIndicators = data.allIndicators;\n\n// Check if data exists\nif (!allIndicators[0] || allIndicators[0].length === 0) {\n  return { json: { error: \"No price data available\", ticker: data.meta?.symbol } };\n}\n\n// Convert prices to numbers\nconst prices = allIndicators[0].values.map(v => parseFloat(v.close)).reverse();\n\n// Function to calculate Fibonacci levels\nfunction calculateFibonacciLevels() {\n  // Find min and max prices\n  const max = Math.max(...prices);\n  const min = Math.min(...prices);\n  const diff = max - min;\n  \n  return {\n    level_0: min.toFixed(2),\n    level_0_236: (min + diff * 0.236).toFixed(2),\n    level_0_382: (min + diff * 0.382).toFixed(2),\n    level_0_5: (min + diff * 0.5).toFixed(2),\n    level_0_618: (min + diff * 0.618).toFixed(2),\n    level_0_786: (min + diff * 0.786).toFixed(2),\n    level_1: max.toFixed(2)\n  };\n}\n// Function to identify support and resistance levels\nfunction findSupportResistanceLevels() {\n  // We need at least 30 data points\n  if (prices.length < 30) {\n    return { support: [], resistance: [] };\n  }\n  \n  const supportLevels = [];\n  const resistanceLevels = [];\n  \n  // Check each point (except edges) if it's a local minimum or maximum\n  const lookback = 5; // how many points to check in each direction\n  \n  for (let i = lookback; i < prices.length - lookback; i++) {\n    // Check for local minimum (support)\n    let isMinimum = true;\n    for (let j = i - lookback; j < i; j++) {\n      if (prices[j] <= prices[i]) {\n        isMinimum = false;\n        break;\n      }\n    }\n    \n    for (let j = i + 1; j <= i + lookback; j++) {\n      if (prices[j] <= prices[i]) {\n        isMinimum = false;\n        break;\n      }\n    }\n    \n    if (isMinimum) {\n      supportLevels.push(prices[i]);\n    }\n    \n    // Check for local maximum (resistance)\n    let isMaximum = true;\n    for (let j = i - lookback; j < i; j++) {\n      if (prices[j] >= prices[i]) {\n        isMaximum = false;\n        break;\n      }\n    }\n    \n    for (let j = i + 1; j <= i + lookback; j++) {\n      if (prices[j] >= prices[i]) {\n        isMaximum = false;\n        break;\n      }\n    }\n    \n    if (isMaximum) {\n      resistanceLevels.push(prices[i]);\n    }\n  }\n  \n  // Sort and remove duplicates\n  const uniqueSupports = [...new Set(supportLevels)];\n  const uniqueResistances = [...new Set(resistanceLevels)];\n  \n  // Return only significant levels (up to 5 of each)\n  return {\n    support: uniqueSupports.sort((a, b) => b - a).slice(0, 5).map(p => p.toFixed(2)),\n    resistance: uniqueResistances.sort((a, b) => a - b).slice(0, 5).map(p => p.toFixed(2))\n  };\n}\n\n// Calculate levels\nconst fibonacciLevels = calculateFibonacciLevels();\nconst supportResistanceLevels = findSupportResistanceLevels();\n\nconst newData = {\n      ticker: allIndicators[0].meta.currency_base,\n      currentPrice: parseFloat(data.allIndicators[0].values[0].close).toFixed(2),\n      fibonacci: fibonacciLevels,\n      supportResistance: supportResistanceLevels,\n      dataPoints: prices.length\n    };\n\nallIndicators.unshift(newData);\n\n// Return information with additional stock data\nreturn allIndicators;"
+        },
+        "id": "c4d06207-13d4-4bd1-ab95-0a92db6ae46f",
+        "name": "Calculate Support Resistance",
+        "type": "n8n-nodes-base.code",
+        "position": [
+          1200,
+          340
+        ],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "jsCode": "// Retrieve all input data items\nconst items = $input.all();\nconst fibData = $input.first().json;\nconst symbol = $(\"Set API Params2\").first().json.symbol;\n\n// Initialize technical indicator data structures\nlet bbandsData = null;\nlet macdData = null;\nlet rsiData = null;\nlet atrData = null;\nlet smaData = {};\nlet emaData = {};\n\n// Process all available indicator data\nitems.forEach((item) => {\n  if (!item || !item.json) return;\n\n  const data = item.json;\n  if (!data.meta || !data.meta.indicator) return;\n\n  const indicatorName = data.meta.indicator.name;\n  const timePeriod = data.meta.indicator.time_period;\n\n  switch (indicatorName) {\n    case 'BBANDS - Bollinger Bands®':\n      bbandsData = data;\n      break;\n    case 'MACD - Moving Average Convergence Divergence':\n      macdData = data;\n      break;\n    case 'RSI - Relative Strength Index':\n      rsiData = data;\n      break;\n    case 'ATR - Average True Range':\n      atrData = data;\n      break;\n    case 'SMA - Simple Moving Average':\n      smaData[timePeriod] = data;\n      break;\n    case 'EMA - Exponential Moving Average':\n      emaData[timePeriod] = data;\n      break;\n  }\n});\n\n// Prepare the result object\nconst result = {\n  ticker: symbol || \"Unknown\",\n  currentPrice: fibData.currentPrice || \"0\",\n  timestamp: new Date().toISOString(),\n  technicalAnalysis: {\n    fibonacci: fibData.fibonacci || {},\n    supportResistance: fibData.supportResistance || { support: [], resistance: [] },\n    bollingerBands: {},\n    macd: {},\n    rsi: {},\n    atr: {},\n    movingAverages: {\n      sma: {},\n      ema: {}\n    }\n  }\n};\n\n// Extract Bollinger Bands\nif (bbandsData?.values?.length > 0) {\n  const bbands = bbandsData.values[0];\n  result.technicalAnalysis.bollingerBands = {\n    upperBand: parseFloat(bbands.upper_band).toFixed(2),\n    middleBand: parseFloat(bbands.middle_band).toFixed(2),\n    lowerBand: parseFloat(bbands.lower_band).toFixed(2)\n  };\n}\n\n// Extract MACD\nif (macdData?.values?.length > 0) {\n  const macd = macdData.values[0];\n  result.technicalAnalysis.macd = {\n    macd: parseFloat(macd.macd).toFixed(2),\n    signal: parseFloat(macd.macd_signal).toFixed(2),\n    histogram: parseFloat(macd.macd_hist).toFixed(2)\n  };\n}\n\n// Extract RSI\nif (rsiData?.values?.length > 0) {\n  const rsi = rsiData.values[0];\n  result.technicalAnalysis.rsi = {\n    value: parseFloat(rsi.rsi).toFixed(2),\n    previousValue: rsiData.values[1] ? parseFloat(rsiData.values[1].rsi).toFixed(2) : null\n  };\n}\n\n// Extract ATR\nif (atrData?.values?.length > 0) {\n  const atr = atrData.values[0];\n  result.technicalAnalysis.atr = {\n    value: parseFloat(atr.atr).toFixed(2)\n  };\n}\n\n// Extract SMA\nObject.entries(smaData).forEach(([period, data]) => {\n  if (data.values?.length > 0) {\n    result.technicalAnalysis.movingAverages.sma[period] = parseFloat(data.values[0].sma).toFixed(2);\n  }\n});\n\n// Extract EMA\nObject.entries(emaData).forEach(([period, data]) => {\n  if (data.values?.length > 0) {\n    result.technicalAnalysis.movingAverages.ema[period] = parseFloat(data.values[0].ema).toFixed(2);\n  }\n});\n\n// Initialize bullish and bearish factors\nlet bullishFactors = [];\nlet bearishFactors = [];\n\n// --- Advanced Analytical Commentary ---\n// Analyze Bollinger Bands\nconst bbands = result.technicalAnalysis.bollingerBands;\nif (bbands.upperBand && bbands.lowerBand) {\n  const currentPrice = parseFloat(result.currentPrice);\n  const upperBand = parseFloat(bbands.upperBand);\n  const lowerBand = parseFloat(bbands.lowerBand);\n\n  if (!isNaN(currentPrice) && !isNaN(upperBand) && !isNaN(lowerBand)) {\n    if (currentPrice > upperBand) {\n      bearishFactors.push(\"Price is above the upper Bollinger Band — indicating potential overbought conditions.\");\n    } else if (currentPrice < lowerBand) {\n      bullishFactors.push(\"Price is below the lower Bollinger Band — indicating potential oversold conditions.\");\n    }\n  }\n}\n\n// Analyze MACD\nconst macdInfo = result.technicalAnalysis.macd;\nif (macdInfo.macd && macdInfo.signal) {\n  const macd = parseFloat(macdInfo.macd);\n  const signal = parseFloat(macdInfo.signal);\n\n  if (!isNaN(macd) && !isNaN(signal)) {\n    if (macd > signal) {\n      bullishFactors.push(\"MACD is above the signal line — indicating positive momentum.\");\n    } else {\n      bearishFactors.push(\"MACD is below the signal line — indicating negative momentum.\");\n    }\n  }\n}\n\n// Analyze RSI\nconst rsiInfo = result.technicalAnalysis.rsi;\nif (rsiInfo.value) {\n  const rsi = parseFloat(rsiInfo.value);\n  if (!isNaN(rsi)) {\n    if (rsi > 70) {\n      bearishFactors.push(\"RSI above 70 — potential overbought condition.\");\n    } else if (rsi < 30) {\n      bullishFactors.push(\"RSI below 30 — potential oversold condition.\");\n    }\n\n    if (rsiInfo.previousValue) {\n      const prevRsi = parseFloat(rsiInfo.previousValue);\n      if (rsi > prevRsi) {\n        bullishFactors.push(\"RSI is trending upwards — suggesting increasing bullish momentum.\");\n      } else if (rsi < prevRsi) {\n        bearishFactors.push(\"RSI is trending downwards — suggesting weakening momentum.\");\n      }\n    }\n  }\n}\n\n// Analyze Moving Averages\nconst currentPrice = parseFloat(result.currentPrice);\nconst sma = result.technicalAnalysis.movingAverages.sma;\nconst ema = result.technicalAnalysis.movingAverages.ema;\n\n// SMA Analysis\nif (sma['7'] && sma['21'] && sma['50'] && sma['200']) {\n  const sma7 = parseFloat(sma['7']);\n  const sma21 = parseFloat(sma['21']);\n  const sma50 = parseFloat(sma['50']);\n  const sma200 = parseFloat(sma['200']);\n\n  if (currentPrice > sma7 && sma7 > sma21) {\n    bullishFactors.push(\"Price above SMA-7 and SMA-21 — short-term uptrend.\");\n  }\n  if (currentPrice > sma50 && sma50 > sma200) {\n    bullishFactors.push(\"Price above SMA-50 and SMA-200 — strong long-term uptrend.\");\n  }\n  if (currentPrice < sma7 && sma7 < sma21) {\n    bearishFactors.push(\"Price below SMA-7 and SMA-21 — short-term downtrend.\");\n  }\n  if (currentPrice < sma50 && sma50 < sma200) {\n    bearishFactors.push(\"Price below SMA-50 and SMA-200 — long-term downtrend.\");\n  }\n}\n\n// EMA Analysis\nif (ema['7'] && ema['21'] && ema['50'] && ema['200']) {\n  const ema7 = parseFloat(ema['7']);\n  const ema21 = parseFloat(ema['21']);\n  const ema50 = parseFloat(ema['50']);\n  const ema200 = parseFloat(ema['200']);\n\n  if (currentPrice > ema7 && ema7 > ema21) {\n    bullishFactors.push(\"Price above EMA-7 and EMA-21 — confirming short-term bullish sentiment.\");\n  }\n  if (currentPrice > ema50 && ema50 > ema200) {\n    bullishFactors.push(\"Price above EMA-50 and EMA-200 — confirming long-term bullish sentiment.\");\n  }\n  if (currentPrice < ema7 && ema7 < ema21) {\n    bearishFactors.push(\"Price below EMA-7 and EMA-21 — indicating short-term weakness.\");\n  }\n  if (currentPrice < ema50 && ema50 < ema200) {\n    bearishFactors.push(\"Price below EMA-50 and EMA-200 — indicating long-term weakness.\");\n  }\n}\n\n// Analyze ATR (Volatility)\nconst atrInfo = result.technicalAnalysis.atr;\nif (atrInfo.value) {\n  const atr = parseFloat(atrInfo.value);\n  const atrPercentage = (atr / currentPrice * 100).toFixed(2);\n  if (atrPercentage > 5) {\n    result.technicalAnalysis.volatility = \"High\";\n  } else if (atrPercentage > 2) {\n    result.technicalAnalysis.volatility = \"Moderate\";\n  } else {\n    result.technicalAnalysis.volatility = \"Low\";\n  }\n}\n\n// Support and Resistance Analysis\nconst supportResistance = result.technicalAnalysis.supportResistance;\nif (supportResistance.support && supportResistance.resistance) {\n  const supports = supportResistance.support.map(s => parseFloat(s)).filter(s => !isNaN(s));\n  const resistances = supportResistance.resistance.map(r => parseFloat(r)).filter(r => !isNaN(r));\n\n  let closestSupport = Math.max(...supports.filter(s => s < currentPrice));\n  let closestResistance = Math.min(...resistances.filter(r => r > currentPrice));\n\n  if (closestSupport) {\n    const supportPercentage = ((currentPrice - closestSupport) / currentPrice * 100).toFixed(2);\n    if (supportPercentage < 5) {\n      bullishFactors.push(`Price is near support (${supportPercentage}%) — potential rebound zone.`);\n    }\n  }\n  if (closestResistance) {\n    const resistancePercentage = ((closestResistance - currentPrice) / currentPrice * 100).toFixed(2);\n    if (resistancePercentage < 5) {\n      bearishFactors.push(`Price is near resistance (${resistancePercentage}%) — potential reversal zone.`);\n    }\n  }\n}\n\n// Fibonacci Analysis\nconst fibonacci = result.technicalAnalysis.fibonacci;\nif (fibonacci && Object.keys(fibonacci).length > 0) {\n  const fibLevels = Object.values(fibonacci).map(level => parseFloat(level)).filter(level => !isNaN(level));\n  fibLevels.sort((a, b) => a - b);\n\n  for (let i = 0; i < fibLevels.length - 1; i++) {\n    if (currentPrice >= fibLevels[i] && currentPrice <= fibLevels[i + 1]) {\n      if (Math.abs(currentPrice - fibLevels[i + 1]) / currentPrice * 100 < 2) {\n        bearishFactors.push(`Price is close to Fibonacci ${[0, 23.6, 38.2, 50, 61.8, 78.6, 100][Math.min(i + 1, 6)]}% level — potential resistance.`);\n      }\n      if (Math.abs(currentPrice - fibLevels[i]) / currentPrice * 100 < 2) {\n        bullishFactors.push(`Price is close to Fibonacci ${[0, 23.6, 38.2, 50, 61.8, 78.6, 100][Math.min(i, 6)]}% level — potential support.`);\n      }\n      break;\n    }\n  }\n}\n\n// Final Recommendation\nlet recommendation = \"\";\nif (bullishFactors.length > bearishFactors.length) {\n  recommendation = \"Bullish\";\n} else if (bearishFactors.length > bullishFactors.length) {\n  recommendation = \"Bearish\";\n} else {\n  recommendation = \"Neutral\";\n}\n\n// Attach summary\nresult.summary = {\n  recommendation: recommendation,\n  bullishFactors: bullishFactors,\n  bearishFactors: bearishFactors,\n  volatility: result.technicalAnalysis.volatility || \"Unknown\"\n};\n\nreturn { json: result };\n"
+        },
+        "id": "f19be0c7-61f4-4ba0-bdc7-79b33ee2ae4b",
+        "name": "Organizing Data",
+        "type": "n8n-nodes-base.code",
+        "position": [
+          1420,
+          340
+        ],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "amount": 8
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          940,
+          640
+        ],
+        "id": "8d48801b-f3a1-48a6-9e91-fd8c45e9b2a6",
+        "name": "Wait2",
+        "webhookId": "41fda0e1-90dd-47e2-9cfc-9c6013949452"
+      },
+      {
+        "parameters": {
+          "url": "=https://api.twelvedata.com/{{ $json.feature? $json.feature : $json.currentParam.feature }}?{{ $json.symbol? \"symbol=\" + $json.symbol : \"symbol=\" + $json.currentParam.query.symbol }}&{{ $json.apikey? \"apikey=\" + $json.apikey : \"apikey\" + $json.currentParam.query.apikey }}{{ $json.outputsize? \"&outputsize=\" + $json.outputsize : \"&outputsize=\" + $json.currentParam.query.outputsize }}{{ $json.interval? \"&interval=\" + $json.interval : \"&interval=\" + $json.currentParam.query.interval }}{{ $json.currentParam.query.time_period ? \"&time_period=\" + $json.currentParam.query.time_period : \"\" }}{{ $json.currentParam.query.exchange ? \"&exchange=\" + $json.currentParam.query.exchange : \"\" }}",
+          "options": {
+            "batching": {
+              "batch": {}
+            },
+            "timeout": 50000
+          }
+        },
+        "id": "71e0de9e-e7bc-462e-8ef0-761fa7e9ab11",
+        "name": "Get Technical Data",
+        "type": "n8n-nodes-base.httpRequest",
+        "position": [
+          460,
+          500
+        ],
+        "typeVersion": 4.1
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "0c24447f-8023-4bf3-9515-5e2033fc3605",
+                "leftValue": "={{ $json.counter }}",
+                "rightValue": 12,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "or"
+          },
+          "options": {}
+        },
+        "id": "870fc568-5d3b-4e09-b0ca-4dfb7820d101",
+        "name": "Check Next Feature",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          820,
+          500
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Get current batch (latest indicator data)\nconst currentBatch = $(\"Get Technical Data\").first().json;\n\n// Get accumulated response data from \"Next\" node\nconst response = $(\"Next\").first().json;\n\n// Maintain loop counter and current param\nconst counter = response.counter ?? 0;\nconst currentParam = response.currentParam ?? {};\n\n// Keep track of previously collected indicator data\nlet allIndicators = response.allIndicators ?? [];\n\n// Add new indicator values if they exist\nif (currentBatch?.values) {\n  allIndicators.push({\n    meta: currentBatch.meta ?? 'unknown',\n    values: currentBatch.values\n  });\n}\n\n// Optional fallback if `results` exists\nif (Array.isArray(response.results)) {\n  allIndicators.push(...response.results);\n}\n\n// Return the updated state\nreturn [{\n  json: {\n    counter,\n    currentParam,\n    allIndicators\n  }\n}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          640,
+          500
+        ],
+        "id": "346f9a1e-9f43-4ad3-aaa2-92363724726c",
+        "name": "Add"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "cf5f7210-5b54-4f4a-abf7-87873be82df4",
+                "name": "symbol",
+                "type": "string",
+                "value": "={{ $json.ticker }}"
+              },
+              {
+                "id": "9f008c4b-60e2-4d99-a119-b0170ec28358",
+                "name": "apikey",
+                "type": "string",
+                "value": "={{ $env.TWELVEDATA_API_KEY }}"
+              },
+              {
+                "id": "d19274a7-d428-4f50-86cc-7e722c31382d",
+                "name": "counter",
+                "value": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "91497b84-ce28-4248-b200-bba7f62c029e",
+        "name": "Set API Params2",
+        "type": "n8n-nodes-base.set",
+        "position": [
+          100,
+          340
+        ],
+        "typeVersion": 3.4
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-4o-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-4O-MINI"
+          },
+          "messages": {
+            "values": [
+              {
+                "content": "=# Role  \n\nYou are a **senior technical analyst** specializing in cryptocurrency markets. Your task is to merge **quantitative technical indicators**, **volume and price structure**, and (if available) **external model predictions** to produce clear, professional, and actionable evaluations of price movements.  \nYour tone must be **professional and data-driven**, but explanations should remain accessible for beginners, avoiding unnecessary jargon.\n\n# Focus  \n- Focus **exclusively on the asset provided in the JSON input** (`ticker`). Ignore unrelated assets or external data not present in the input.  \n- Use the **exact numeric values** from the data — **do not guess or invent numbers**.  \n- If any indicator is missing, explicitly state this rather than assuming values.  \n- **Incorporate the external prediction (if provided)** as a **supporting factor only**. The model's accuracy is ~54%, so it should not outweigh technical evidence.\n\n# Inputs  \nYou will receive **technical indicator data** for a single asset in this format:\n\n```json\n{{ JSON.stringify($json) }}\n````\n\nThe data includes:\n\n* `ticker`, `currentPrice`, `timestamp`\n* `technicalAnalysis`: fibonacci levels, support/resistance, Bollinger Bands, MACD, RSI, ATR, moving averages (SMA & EMA), **volume**, volatility\n* `summary`: recommendation, bullishFactors, bearishFactors\n* `prediction` (optional): output from external model (0 = bearish, 1 = bullish, accuracy ≈ 54%)\n\n# Output Sections\n\nReturn your **complete analysis** in this **exact structure**:\n\n## Quick\\_Stats\n\n* Ticker: <ticker>\n* Current Price: <currentPrice> USD\n* Timestamp: <timestamp>\n* Overall Recommendation: \\<summary.recommendation>\n* External Model Prediction: <prediction> (supporting input, low confidence)\n\n## Candles\\_and\\_EMA\n\n* Analyze **trend direction**, **candlestick behavior** (if relevant), and **EMA alignment**.\n* Include comments on **volume**: e.g., rising volume confirms breakout, falling volume indicates weakness, or volume is stable/consolidating.\n\n## RSI\n\n* Provide current RSI value and interpret it: overbought (>70), oversold (<30), or neutral.\n* Mention whether RSI is **rising or falling**, and what it implies for **momentum**.\n\n## Indicator\\_Synthesis\n\n* **Fibonacci Levels**: Identify nearest **support and resistance levels**, and % distance from current price.\n* **Bollinger Bands**: State where price sits relative to bands (upper/mid/lower), and possible implications.\n* **MACD**: Note position of MACD vs signal line and whether histogram confirms momentum.\n* **Support/Resistance**: Highlight **key resistance zones** and how close price is to them; flag breakout potential.\n* **Moving Averages (SMA & EMA)**: Summarize trend consistency or contradiction across timeframes.\n* **ATR**: Assess current volatility level as low/moderate/high based on ATR value.\n\n## Actionable\\_Takeaway\n\n* Summarize **market bias** (Bullish/Bearish/Neutral).\n* Suggest concrete **next steps** — e.g., wait for breakout above resistance X, enter on pullback to support Y, or stay sidelined if unclear.\n* If indicators conflict, explain which ones carry more weight (e.g., MACD diverging from price while volume confirms trend).\n* If external `prediction` aligns or conflicts with indicators, **briefly mention its support or contradiction** — but do not rely solely on it.\n\n---\n\n# Additional Rules\n\n* **Keep each section concise (3–5 lines)**, professional and focused.\n* Avoid fluff or excessive explanation — be efficient but informative.\n* Never add extra sections or text outside the above structure.\n* End the output **immediately after the Actionable Takeaway section**.\n\n",
+                "role": "system"
+              },
+              {
+                "content": "={{ JSON.stringify($json) }}"
+              }
+            ]
+          },
+          "jsonOutput": true,
+          "options": {
+            "maxTokens": 1500,
+            "temperature": 0
+          }
+        },
+        "id": "84f0eb17-32ad-4c64-b23d-dadf953f2c91",
+        "name": "Technical Analysis",
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "position": [
+          1640,
+          340
+        ],
+        "typeVersion": 1.8,
+        "alwaysOutputData": true,
+        "retryOnFail": true,
+        "maxTries": 5,
+        "waitBetweenTries": 4000,
+        "credentials": {
+          "openAiApi": {
+            "id": "N8oInDsQgSB1cWCh",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "url": "=https://api.binance.com/api/v3/klines?symbol={{ $json.symbol }}USDT&interval=12h&limit=11\n",
+          "options": {
+            "batching": {
+              "batch": {}
+            },
+            "timeout": 50000
+          }
+        },
+        "id": "f5ce2340-fe32-4b3a-968f-088d09d29bd0",
+        "name": "Get Technical Data1",
+        "type": "n8n-nodes-base.httpRequest",
+        "position": [
+          460,
+          220
+        ],
+        "typeVersion": 4.1
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "8fe18e9a-90bb-4360-a961-dc7824d008d1",
+                "name": "open_time",
+                "value": "={{ $json[0] }}",
+                "type": "string"
+              },
+              {
+                "id": "f7930496-7f4e-46a6-9115-b2adf027edf5",
+                "name": "open",
+                "value": "={{ $json[1] }}",
+                "type": "string"
+              },
+              {
+                "id": "c48cef4b-d8ec-4781-9b50-511418af9ebe",
+                "name": "high",
+                "value": "={{ $json[2] }}",
+                "type": "string"
+              },
+              {
+                "id": "271cd41f-10e6-48a3-aef7-2016a07ef511",
+                "name": "low",
+                "value": "={{ $json[3] }}",
+                "type": "string"
+              },
+              {
+                "id": "58ba55c8-2e1f-4d9b-a83c-03456913ca2f",
+                "name": "close",
+                "value": "={{ $json[4] }}",
+                "type": "string"
+              },
+              {
+                "id": "eb634be1-0768-4c61-83d2-0ec5625760d7",
+                "name": "volume",
+                "value": "={{ $json[5] }}",
+                "type": "string"
+              },
+              {
+                "id": "6f3ac1be-80b9-4dbe-88fa-eb8aeeeaabfc",
+                "name": "close_time",
+                "value": "={{ $json[6] }}",
+                "type": "string"
+              },
+              {
+                "id": "b8ed5bfc-8712-4410-882b-347a62d76e43",
+                "name": "quote_volume",
+                "value": "={{ $json[7] }}",
+                "type": "string"
+              },
+              {
+                "id": "a4955323-e765-4938-93ed-5488dc5f1048",
+                "name": "num_trades",
+                "value": "={{ $json[8] }}",
+                "type": "string"
+              },
+              {
+                "id": "ae4b92ed-0c9e-41d7-88c8-a0813e480a75",
+                "name": "taker_buy_base_volume",
+                "value": "={{ $json[9] }}",
+                "type": "string"
+              },
+              {
+                "id": "68998218-187a-46f6-949b-6bc7b89a33e9",
+                "name": "taker_buy_quote_volume",
+                "value": "={{ $json[10] }}",
+                "type": "string"
+              },
+              {
+                "id": "aa0eefe2-6880-409e-998a-92ce4a337e68",
+                "name": "ignore",
+                "value": "={{ $json[11] }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          680,
+          220
+        ],
+        "id": "7c22ab71-c7c2-47fc-88ec-0cff7506c0c7",
+        "name": "Edit Fields"
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "options": {}
+        },
+        "id": "58474857-0e2b-4984-8111-7bb9fe4598c0",
+        "name": "Merge-",
+        "type": "n8n-nodes-base.merge",
+        "position": [
+          960,
+          340
+        ],
+        "typeVersion": 3.1
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "FsuXTtsA9tA69AtI",
+            "mode": "list",
+            "cachedResultName": "test RAG"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {},
+            "matchingColumns": [],
+            "schema": [],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": true
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.2,
+        "position": [
+          2580,
+          340
+        ],
+        "id": "95392707-1a0c-419f-8bd8-7afa06b84594",
+        "name": "Execute Workflow"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Get sentiment and technical analysis data\nconst sentimentAnalysis = $(\"Workflow Trigger\").first().json;\nlet technicalAnalysis = $input.first().json.message?.content || {};\nconst technicalFeaturs = $(\"Organizing Data\").first().json.technicalAnalysis;\nconst summery = $(\"Organizing Data\").first().json.summery;\n\n// If technicalAnalysis is a string (e.g., Markdown), try to parse JSON if possible\nif (typeof technicalAnalysis === \"string\") {\n  try {\n    technicalAnalysis = JSON.parse(technicalAnalysis);\n  } catch (e) {\n    // Keep as string if not valid JSON\n  }\n}\n\n// Combine into a unified object\nconst combinedData = {\n  ticker: sentimentAnalysis.ticker || technicalAnalysis?.Quick_Stats?.Ticker || \"Unknown\",\n  symbol_id: sentimentAnalysis.symbol_id || null,\n  timestamp: sentimentAnalysis.timestamp || new Date().toISOString(),\n  sentiment_analysis: {\n    score: sentimentAnalysis.sentiment_score || null,\n    confidence_score: sentimentAnalysis.confidence_score || null,\n    label: sentimentAnalysis.sentiment_label || \"neutral\",\n    extremely_bearish: sentimentAnalysis.extremely_bearish || 0,\n    bearish: sentimentAnalysis.bearish || 0,\n    neutral: sentimentAnalysis.neutral || 0,\n    bullish: sentimentAnalysis.bullish || 0,\n    extremely_bullish: sentimentAnalysis.extremely_bullish || 0,\n    topic_counts: sentimentAnalysis.topic_counts || {},\n    top_articles: sentimentAnalysis.top_articles || [],\n    recent_trends: sentimentAnalysis.recent_trends || {},\n  },\n  technical_analysis: {\n    \"indicators\": technicalFeaturs,\n    \"summery\": summery,\n    \"analysis\": technicalAnalysis,\n  },\n};\n\nreturn [{ json: combinedData }];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2020,
+          340
+        ],
+        "id": "37ef8f10-7bd7-40b6-925d-146eb28339bb",
+        "name": "Parse"
+      },
+      {
+        "parameters": {
+          "inputSource": "passthrough"
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          -200,
+          340
+        ],
+        "id": "c6314969-96c8-42d4-827a-aa99e89cd93e",
+        "name": "Workflow Trigger"
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $json;\n\nconst allIndicators = data.allIndicators ?? [];\n\nconst apiData = $(\"Set API Params2\").first().json;\nconst symbol = apiData.symbol;\nconst apikey = apiData.apikey;\n\nif (data.counter == 0) {\n  \n}\n\nconst counter = data.counter + 1;\n\nconst params = {\n  time_series:{ feature: \"time_series\", query: { symbol: symbol, interval: \"1day\", outputsize: \"180\", apikey: \"=\" + apikey }},\n  bbands: { feature: \"bbands\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", apikey: \"=\" + apikey }},\n  macd: { feature: \"macd\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", apikey: \"=\" + apikey }},\n  rsi: { feature: \"rsi\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", apikey: \"=\" + apikey }},\n  atr: { feature: \"atr\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"14\", apikey: \"=\" + apikey }},\n  sma7: { feature: \"sma\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"7\", apikey: \"=\" + apikey }},\n  sma21: { feature: \"sma\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"21\", apikey: \"=\" + apikey }},\n  sma50: { feature: \"sma\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"50\", apikey: \"=\" + apikey }},\n  sma200: { feature: \"sma\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"200\", apikey: \"=\" + apikey }},\n  ema7: { feature: \"ema\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"7\", apikey: \"=\" + apikey }},\n  ema21: { feature: \"ema\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"21\", apikey: \"=\" + apikey }},\n  ema50: { feature: \"ema\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"50\", apikey: \"=\" + apikey }},\n  ema200: { feature: \"ema\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"200\", apikey: \"=\" + apikey }},\n};\n\nconst paramKeys = Object.keys(params);\nconst currentParam = params[paramKeys[counter - 1]];\n\nreturn [{\n  json: {\n    counter,\n    currentParam,\n    allIndicators,\n  }\n}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -300,
+          640
+        ],
+        "id": "cb975bc8-9515-4970-b3ec-c3483b9695aa",
+        "name": "Next Stock",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $json;\n\nconst allIndicators = data.allIndicators ?? [];\n\nconst apiData = $(\"Set API Params2\").first().json;\nconst symbol = apiData.symbol;\nconst apikey = apiData.apikey;\n\nif (data.counter == 0) {\n  \n}\n\nconst counter = data.counter + 1;\n\nconst params = {\n  time_series:{ feature: \"time_series\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"180\", exchange: \"Binance\", apikey: \"=\" + apikey }},\n  bbands: { feature: \"bbands\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", apikey: \"=\" + apikey }},\n  macd: { feature: \"macd\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", apikey: \"=\" + apikey }},\n  rsi: { feature: \"rsi\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", apikey: \"=\" + apikey }},\n  atr: { feature: \"atr\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", time_period: \"14\", apikey: \"=\" + apikey }},\n  sma7: { feature: \"sma\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", time_period: \"7\", apikey: \"=\" + apikey }},\n  sma21: { feature: \"sma\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", time_period: \"21\", apikey: \"=\" + apikey }},\n  sma50: { feature: \"sma\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", time_period: \"50\", apikey: \"=\" + apikey }},\n  sma200: { feature: \"sma\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", time_period: \"200\", apikey: \"=\" + apikey }},\n  ema7: { feature: \"ema\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", time_period: \"7\", apikey: \"=\" + apikey }},\n  ema21: { feature: \"ema\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", time_period: \"21\", apikey: \"=\" + apikey }},\n  ema50: { feature: \"ema\", query: { symbol: symbol, interval: \"1day\", outputsize: \"1\", time_period: \"50\", apikey: \"=\" + apikey }},\n  ema200: { feature: \"ema\", query: { symbol: symbol + \"/USD\", interval: \"1day\", outputsize: \"1\", time_period: \"200\", apikey: \"=\" + apikey }},\n};\n\nconst paramKeys = Object.keys(params);\nconst currentParam = params[paramKeys[counter - 1]];\n\nreturn [{\n  json: {\n    counter,\n    currentParam,\n    allIndicators,\n  }\n}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          280,
+          500
+        ],
+        "id": "aa7d2b71-191e-4838-b167-c4903054055d",
+        "name": "Next"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.BACKEND_PREDICTION_WEBHOOK_URL || 'http://backend:8000/api/analysis/n8n-prediction-webhook/' }}",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "analysis",
+                "value": "={{ $input.first().json }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2220,
+          160
+        ],
+        "id": "56adfe7e-4533-48ed-9374-a1bcb5c9d201",
+        "name": "HTTP Request",
+        "disabled": true
+      }
+    ],
+    "connections": {
+      "On form submission": {
+        "main": [
+          []
+        ]
+      },
+      "Calculate Support Resistance": {
+        "main": [
+          [
+            {
+              "node": "Organizing Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Organizing Data": {
+        "main": [
+          [
+            {
+              "node": "Technical Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait2": {
+        "main": [
+          [
+            {
+              "node": "Next",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Technical Data": {
+        "main": [
+          [
+            {
+              "node": "Add",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Next Feature": {
+        "main": [
+          [
+            {
+              "node": "Merge-",
+              "type": "main",
+              "index": 1
+            }
+          ],
+          [
+            {
+              "node": "Wait2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Add": {
+        "main": [
+          [
+            {
+              "node": "Check Next Feature",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set API Params2": {
+        "main": [
+          [
+            {
+              "node": "Get Technical Data1",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Next",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Technical Analysis": {
+        "main": [
+          [
+            {
+              "node": "Parse",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Technical Data1": {
+        "main": [
+          [
+            {
+              "node": "Edit Fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Edit Fields": {
+        "main": [
+          [
+            {
+              "node": "Merge-",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge-": {
+        "main": [
+          [
+            {
+              "node": "Calculate Support Resistance",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse": {
+        "main": [
+          [
+            {
+              "node": "Execute Workflow",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "Set API Params2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Next": {
+        "main": [
+          [
+            {
+              "node": "Get Technical Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request": {
+        "main": [
+          []
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "3fbcda4c054baf3420fff33d904e66bec4d04f59505e1e071d6362b8c29258ba"
+    }
+  }

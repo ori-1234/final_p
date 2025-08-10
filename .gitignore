@@ -1,0 +1,83 @@
+# === Global ===
+*.log
+*.tmp
+*.sw?
+.DS_Store
+Thumbs.db
+
+# === Python/Django ===
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
+.tox/
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+venv/
+back/venv/
+.env/
+.env.*
+!.env.example
+.envrc
+
+# Django media/static (generated)
+back/media/
+back/staticfiles/
+
+# Local settings (if present)
+settings_local.py
+
+# SQLite (just in case)
+*.sqlite3
+
+# === Node/Frontend (root-level additions; front/ also has its own .gitignore) ===
+front/node_modules/
+front/dist/
+front/dist-ssr/
+front/*.local
+front/.env
+front/.env.*
+!front/.env.example
+
+# === IDE/Editor ===
+.vscode/
+.idea/
+*.iml
+*.code-workspace
+
+# === Docker/Compose secrets ===
+docker-compose.override.yml
+
+# === n8n Ops ===
+# Never commit credentials content
+ops/n8n/credentials/*
+!ops/n8n/credentials/.gitkeep
+!ops/n8n/credentials/README.md
+
+# Optional: ignore ad-hoc exports/backups placed under ops
+ops/**/exports/
+ops/**/backups/
+
+# === Misc backups ===
+*.bak
+*.backup
+*.dump
+*.sql
+*.rdb
+
+# === Keys/Certificates ===
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+

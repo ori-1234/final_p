@@ -1,0 +1,506 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Hero Section */
+.hero-section {
+  padding: 4rem 0;
+  overflow: hidden;
+}
+
+.hero-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3rem;
+}
+
+.hero-text {
+  flex: 1;
+}
+
+.hero-image {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.hero-image img {
+  max-width: 100%;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(58, 128, 233, 0.3);
+}
+
+/* Broker Section */
+.broker-section {
+  padding: 6rem 0;
+  background-color: #14171c;
+}
+
+.broker-content {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  margin-top: 2rem;
+}
+
+.broker-text {
+  flex: 1;
+}
+
+.broker-text h3 {
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  color: #fff;
+}
+
+.broker-text p {
+  color: #888;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.broker-image {
+  flex: 1;
+}
+
+.broker-image img {
+  max-width: 100%;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(58, 128, 233, 0.3);
+}
+
+.broker-benefits {
+  margin-top: 2rem;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.benefit-icon {
+  font-size: 2rem;
+  color: #3a80e9;
+}
+
+.benefit-item h4 {
+  margin-bottom: 0.5rem;
+  color: #fff;
+}
+
+.benefit-item p {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+}
+
+/* Fee Structure Section */
+.fees-section {
+  padding: 6rem 0;
+}
+
+.fee-cards {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin: 3rem 0 1.5rem;
+}
+
+.fee-card {
+  background-color: #14171c;
+  border-radius: 16px;
+  border: 1px solid #2C2D31;
+  padding: 2rem;
+  flex: 1;
+  max-width: 300px;
+  position: relative;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.fee-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 10px 20px rgba(58, 128, 233, 0.2);
+}
+
+.fee-card.highlight {
+  border-color: #3a80e9;
+  box-shadow: 0 0 20px rgba(58, 128, 233, 0.2);
+  transform: scale(1.05);
+  z-index: 1;
+}
+
+.popular-tag {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #3a80e9;
+  color: #000;
+  font-weight: bold;
+  padding: 0.25rem 1rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+}
+
+.fee-card-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.fee-card-header h3 {
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.fee-rate {
+  font-size: 3rem;
+  text-align: center;
+  font-weight: bold;
+  color: #3a80e9;
+  margin-bottom: 1.5rem;
+}
+
+.fee-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.fee-features li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #2C2D31;
+  color: #888;
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.fee-features li:before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #3a80e9;
+}
+
+.fee-features li:last-child {
+  border-bottom: none;
+}
+
+.fee-note {
+  text-align: center;
+  color: #888;
+  font-size: 0.9rem;
+  margin-top: 1rem;
+}
+
+/* AI Analysis Section */
+.ai-section {
+  padding: 6rem 0;
+  background-color: #14171c;
+}
+
+.ai-content {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  margin-top: 2rem;
+}
+
+.ai-image {
+  flex: 1;
+}
+
+.ai-image img {
+  max-width: 100%;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(58, 128, 233, 0.3);
+}
+
+.ai-text {
+  flex: 1;
+}
+
+.ai-text h3 {
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  color: #fff;
+}
+
+.ai-text p {
+  color: #888;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.ai-features {
+  margin-bottom: 2rem;
+}
+
+.ai-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.ai-icon {
+  font-size: 2rem;
+  color: #3a80e9;
+}
+
+.ai-feature h4 {
+  margin-bottom: 0.5rem;
+  color: #fff;
+}
+
+.ai-feature p {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+}
+
+/* Features Section */
+.features-section {
+  padding: 6rem 0;
+  background-color: #14171c;
+}
+
+.section-title {
+  font-size: 2.5rem;
+  margin-bottom: 3rem;
+  text-align: center;
+  position: relative;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.feature-card {
+  background-color: #111;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  transition: transform 0.3s, box-shadow 0.3s;
+  border: 1px solid #2C2D31;
+}
+
+.feature-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 10px 20px rgba(58, 128, 233, 0.2);
+}
+
+.feature-icon {
+  font-size: 2.5rem;
+  color: #3a80e9;
+  margin-bottom: 1rem;
+}
+
+.feature-card h3 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.feature-card p {
+  color: #888;
+  line-height: 1.6;
+}
+
+/* Products Section */
+.products-section {
+  padding: 6rem 0;
+}
+
+.products-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4rem;
+}
+
+.product-card {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  background-color: #14171c;
+  border-radius: 16px;
+  padding: 2rem;
+  border: 1px solid #2C2D31;
+}
+
+.product-card.reverse {
+  flex-direction: row-reverse;
+}
+
+.product-content {
+  flex: 1;
+}
+
+.product-content h3 {
+  font-size: 1.75rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.product-content p {
+  color: #888;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.product-image {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.product-image img {
+  max-width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* About Section */
+.about-section {
+  padding: 6rem 0;
+  background-color: #14171c;
+}
+
+.about-wrapper {
+  display: flex;
+  gap: 4rem;
+  align-items: center;
+}
+
+.about-content {
+  flex: 3;
+}
+
+.about-content p {
+  color: #888;
+  margin-bottom: 1.5rem;
+  line-height: 1.7;
+}
+
+.about-stats {
+  flex: 2;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+}
+
+.stat-item {
+  background-color: #111;
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  border: 1px solid #2C2D31;
+}
+
+.stat-number {
+  display: block;
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #3a80e9;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  color: #888;
+  font-size: 1rem;
+}
+
+/* CTA Section */
+.cta-section {
+  padding: 6rem 0;
+}
+
+.cta-wrapper {
+  background: linear-gradient(135deg, #14171c 0%, #0f1318 100%);
+  padding: 4rem 2rem;
+  border-radius: 16px;
+  text-align: center;
+  border: 1px solid #2C2D31;
+}
+
+.cta-wrapper h2 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.cta-wrapper p {
+  color: #888;
+  margin-bottom: 2rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 992px) {
+  .hero-content,
+  .broker-content,
+  .ai-content {
+    flex-direction: column;
+  }
+  
+  .about-wrapper {
+    flex-direction: column;
+  }
+  
+  .product-card,
+  .product-card.reverse {
+    flex-direction: column;
+  }
+  
+  .fee-cards {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .fee-card,
+  .fee-card.highlight {
+    max-width: 100%;
+    width: 100%;
+    transform: none;
+  }
+  
+  .fee-card.highlight {
+    order: -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-content h1 {
+    font-size: 4rem;
+  }
+  
+  .section-title {
+    font-size: 2rem;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .about-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .cta-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+} 

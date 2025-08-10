@@ -1,0 +1,1107 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const stockSymbol = $json[\"symbol\"] || \"BTC\";\n\n// Generate yesterday's date in YYYYMMDDTHHmm format\nfunction getYesterdayDateFormat() {\n  const today = new Date();\n  today.setDate(today.getDate() - 1);\n  today.setHours(0, 0, 0, 0);\n  const year = today.getFullYear();\n  const month = String(today.getMonth() + 1).padStart(2, '0');\n  const day = String(today.getDate()).padStart(2, '0');\n  const hours = String(today.getHours()).padStart(2, '0');\n  const minutes = String(today.getMinutes()).padStart(2, '0');\n  return `${year}${month}${day}T${hours}${minutes}`;\n}\n\nconst wanted_date = getYesterdayDateFormat();\n\n// ✅ Return a single object, not an array\nreturn {\n  json: {\n    stockSymbol,\n    wanted_date\n  }\n};\n"
+        },
+        "id": "07f6abc3-2435-4e5f-b024-7c6f7ae43e93",
+        "name": "Generate Variables For API",
+        "type": "n8n-nodes-base.code",
+        "position": [
+          -2920,
+          620
+        ],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "url": "={{ $env.NEWSDATA_ENDPOINT || 'https://newsdata.io/api/1/latest' }}?apikey={{ $('Set Variables').first().json.apikey }}&q={{ $('Set Variables').first().json.stockSymbol }}{{ $json.nextPage ? '&page=' + $json.nextPage : '' }}&language=en&timezone=Asia/Jerusalem&category=technology,politics,business,world,top\n",
+          "options": {
+            "batching": {
+              "batch": {}
+            },
+            "timeout": 50000
+          }
+        },
+        "id": "98678fa4-f9df-4f84-b47d-dbbbb05cf170",
+        "name": "Get News Data",
+        "type": "n8n-nodes-base.httpRequest",
+        "position": [
+          -2280,
+          620
+        ],
+        "typeVersion": 4.1
+      },
+      {
+        "parameters": {
+          "values": {
+            "number": [
+              {
+                "name": "wantedDate",
+                "value": "={{ $json.wanted_date }}"
+              }
+            ],
+            "string": [
+              {
+                "name": "stockSymbol",
+                "value": "={{ $json.stockSymbol }}"
+              },
+              {
+                "name": "apikey",
+                "value": "={{ $env.NEWSDATA_API_KEY }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "ca7bf585-22d1-4493-9dcb-d6282da3c63b",
+        "name": "Set Variables",
+        "type": "n8n-nodes-base.set",
+        "position": [
+          -2700,
+          620
+        ],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "0c24447f-8023-4bf3-9515-5e2033fc3605",
+                "leftValue": "={{ $json.nextPage }}",
+                "rightValue": "=3",
+                "operator": {
+                  "type": "string",
+                  "operation": "notExists",
+                  "singleValue": true
+                }
+              },
+              {
+                "id": "a0c60c25-4109-43d6-86c8-097ad47e1323",
+                "leftValue": "={{ $json.counter }}",
+                "rightValue": 5,
+                "operator": {
+                  "type": "number",
+                  "operation": "gte"
+                }
+              }
+            ],
+            "combinator": "or"
+          },
+          "options": {
+            "looseTypeValidation": true
+          }
+        },
+        "id": "d6682ca6-6c84-4f49-ac07-b3f579468120",
+        "name": "Check Next Page1",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          -1860,
+          620
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const currentBatch = $input.all();\n\nlet counter = 0;\nlet allArticles = [];\nlet variables = {};\nlet nextPage = null;\n\n// Calculate cutoff (24 hours ago)\nconst now = new Date();\nconst cutoffTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\nlet stop = false;\n\nwhile (true) {\n  try {\n    const items = $items(\"Get News Data\", 0, counter);\n    if (!items || items.length === 0 || stop) break;\n\n    for (const item of items) {\n      // Store variables once\n      if (Object.keys(variables).length === 0 && item.json.variables) {\n        variables = item.json.variables;\n      }\n\n      // Process only articles within the last 24 hours\n      const results = item.json.allArticles || item.json.results || [];\n      for (const article of results) {\n        const articleDate = new Date(article.pubDate || article.pub_date || article.date || article.published_at);\n\n        if (articleDate < cutoffTime) {\n          // If we hit an article older than 24h, stop and set nextPage to null\n          stop = true;\n          nextPage = null;\n          break;\n        }\n\n        // Only add articles within the 24h interval\n        allArticles.push(article);\n      }\n\n      if (stop) break;\n\n      // Store nextPage if exists\n      if (item.json.nextPage) {\n        nextPage = item.json.nextPage;\n      } else {\n        nextPage = null;\n      }\n    }\n\n    if (stop) break;\n    counter++;\n  } catch (err) {\n    break;\n  }\n}\n\n// Return final accumulated data\nreturn [\n  {\n    json: {\n      counter,\n      variables,\n      allArticles,\n      ...(nextPage ? { nextPage } : null)\n    }\n  }\n];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -2080,
+          620
+        ],
+        "id": "376ea380-4190-403a-90d8-815401337c81",
+        "name": "Add News"
+      },
+      {
+        "parameters": {
+          "amount": 6
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          -1700,
+          740
+        ],
+        "id": "12fb58cb-9dd3-45b7-adfa-bb250b5026dd",
+        "name": "Wait",
+        "webhookId": "41fda0e1-90dd-47e2-9cfc-9c6013949452"
+      },
+      {
+        "parameters": {
+          "jsCode": "const original = $json;\n\n// Step 1: If this is the first run, store the original input\nconst stockSymbol = original.stockSymbol || original.originalStockSymbol;\nconst apikey = original.apikey || original.originalApikey;\nconst wanted_date = original.wanted_date;\nconst wantedDate = original.wantedDate;\n\n// Step 2: Prepare the next output\nlet result = {\n  stockSymbol: stockSymbol,\n  wanted_date: wanted_date,\n  wantedDate: wantedDate,\n  apikey: apikey,\n};\n\n// Step 3: If a new `nextPage` exists (e.g. coming from article response)\nif (original.nextPage) {\n  result.nextPage = original.nextPage;\n}\n\nreturn [\n  {\n    json: result\n  }\n];\n\n\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -2480,
+          620
+        ],
+        "id": "a8f5a3ab-8030-49fc-a3aa-54de0e9cf826",
+        "name": "Set nextPage"
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $(\"Check Next Page1\").first();\n\nconst symbol = $(\"Set Data.io Params\").first().json.symbol\n\n\nconst news = data.json.allArticles;\n\nconst newsData = [];\n\nfor (let item of news) {\n  newsData.push({\n    \"article_id\": item.article_id,\n    \"title\": item.title,\n    \"description\": item.description,\n    \"creator\": item.source_name,\n    \"link\": item.link,\n    \"pubDate\": item.pubDate,\n  })\n}\n\nconst date = DateTime.now().year + '-' + DateTime.now().month + '-' + DateTime.now().day\n\n\n\nreturn newsData.map(item => {return item});"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1620,
+          600
+        ],
+        "id": "452e65de-4c51-46ae-9ab3-75f0fbf6b5b2",
+        "name": "JSON for GPT"
+      },
+      {
+        "parameters": {
+          "batchSize": 15,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          -880,
+          600
+        ],
+        "id": "db5dac01-b5f8-4df0-9d70-2a69cbecf32c",
+        "name": "Loop Over Items"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "cf5f7210-5b54-4f4a-abf7-87873be82df4",
+                "name": "symbol",
+                "type": "string",
+                "value": "={{ $json.body.Ticker_symbol || $json.Tcker_symbol }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "f4fe127c-3553-4ff5-9bb5-5e5bc62fc60d",
+        "name": "Set Data.io Params",
+        "type": "n8n-nodes-base.set",
+        "position": [
+          -3140,
+          620
+        ],
+        "typeVersion": 3.4
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "583b527a-93b0-4b35-bc8f-67a2e08db683",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -3400,
+          620
+        ],
+        "id": "4387c97d-a476-4f0d-a0c1-7e5409d5f2e3",
+        "name": "Webhook",
+        "webhookId": "583b527a-93b0-4b35-bc8f-67a2e08db683",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "formTitle": "Advance Stock Analysis",
+          "formDescription": "Please enter the company’s NASDAQ ticker symbol (e.g. AAPL) to get a weekly email with combined technical-and-news sentiment analysis from our AI agent",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "Ticker_symbol",
+                "placeholder": "BTC",
+                "requiredField": true
+              }
+            ]
+          },
+          "responseMode": "lastNode",
+          "options": {
+            "appendAttribution": true,
+            "respondWithOptions": {
+              "values": {
+                "formSubmittedText": "Success! Check your inbox (or spam folder) for your analysis report."
+              }
+            }
+          }
+        },
+        "id": "8d918e77-3fe4-4233-af45-a865ecd061ee",
+        "name": "On form submission",
+        "type": "n8n-nodes-base.formTrigger",
+        "position": [
+          -3640,
+          620
+        ],
+        "webhookId": "79520027-d875-4ca3-a533-614bfca5e5b1",
+        "typeVersion": 2.2
+      },
+      {
+        "parameters": {
+          "functionCode": "return [{ json: { all_ids: items.map(i => i.json.article_id) } }];"
+        },
+        "name": "Extract All IDs",
+        "type": "n8n-nodes-base.function",
+        "typeVersion": 1,
+        "position": [
+          -1440,
+          600
+        ],
+        "id": "008b0fd7-b326-488c-a9df-7cfe4e0fc2fc"
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "mode": "list",
+            "value": "gpt-4o-mini"
+          },
+          "options": {
+            "responseFormat": "text"
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.2,
+        "position": [
+          480,
+          640
+        ],
+        "id": "474a6170-e862-4967-a696-53c145b09e9a",
+        "name": "OpenAI Chat Model1",
+        "credentials": {
+          "openAiApi": {
+            "id": "<use-n8n-credential-id>",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "=### **Prompt:**\nYou are an advanced financial analyst specializing in cryptocurrency sentiment.\n\nYou are analyzing sentiment data and top news articles for a specific cryptocurrency.  \nYour analysis must focus exclusively on the symbol provided in **stock_symbol** ({{ $(\"Set Variables\").first().json.stockSymbol }}).  \nEven if other coins or tokens (e.g., ETH, BTC) are mentioned in the articles, they should not affect your primary analysis.\n\nGiven:\n- daily_features: {{ JSON.stringify($(\"Daily Score Calc\").all()) }}\n- stock_symbol: {{ $(\"Set Variables\").first().json.stockSymbol }}\n- analysis_date: {{ $(\"Daily Score Calc\").first().json.timestamp }}\n\n**Task:**\nAnalyze the tone, sentiment_score, sentiment_label, topic_counts, and top_articles.  \nGenerate a JSON object containing **all the fields from daily_features**, and add the following field:\n\n```json\n\"recent_trends\": {\n  \"description\": \"<5–8 lines summary of news tone and key events related to stock_symbol>\",\n  \"market_outlook\": \"<5–8 lines projection and outlook for stock_symbol>\"\n}\n````\n\n**Instructions:**\n\n1. Use ALL fields from daily\\_features as-is, and append recent\\_trends.\n2. Focus ONLY on the cryptocurrency specified by stock\\_symbol.\n3. Highlight sentiment trends, topic\\_counts, and themes directly impacting this symbol.\n4. Summarize 2–3 of the most relevant articles (from top\\_articles) tied to the stock\\_symbol.\n5. Provide a market\\_outlook that is forward-looking, based on the sentiment data.\n6. Return **the full JSON object with daily\\_features + recent\\_trends**, with no extra text.\n",
+          "hasOutputParser": true,
+          "options": {
+            "systemMessage": "=### **Prompt:**\n\nYou are an advanced financial analyst specializing in cryptocurrency market sentiment.\nI will provide you with **aggregated sentiment data and top news articles for a specific cryptocurrency**, and your task is to create the field `\"recent_trends\"` with **two detailed and well-structured subsections**:\n\n1. **\"description\"** – Summarize, in **5–8 concise lines**, the key narrative emerging from the news articles:\n\n   * Reference the overall sentiment (`sentiment_label` and `sentiment_score`).\n   * Mention the distribution of articles (counts of `bullish`, `extremely_bullish`, etc.).\n   * Highlight **key topics** from `topic_counts` (e.g., Adoption, Innovation, Market Analysis).\n   * Describe the tone and themes from the top 2–3 `top_articles` (e.g., mining packages, passive income opportunities).\n   * Use a professional tone emphasizing recent developments and the market’s mood.\n\n2. **\"market\\_outlook\"** – Provide a **5–8 line forecast and interpretation**:\n\n   * Use the overall sentiment and confidence (`confidence_score`) to evaluate short-term market direction.\n   * Describe potential implications for price or investor behavior based on the themes of the top articles.\n   * Indicate how the dominant topics (from `topic_counts`) may influence adoption, trading strategies, or investor sentiment.\n   * Use forward-looking language with cautious and realistic insights.\n\n---\n\n### **Input Data Example:**\n\n```json\n{\n  \"symbol_id\": 3,\n  \"timestamp\": \"2025-07-19T16:05:30.000Z\",\n  \"sentiment_score\": \"0.5650\",\n  \"confidence_score\": \"0.7850\",\n  \"sentiment_label\": \"bullish\",\n  \"extremely_bearish\": 0,\n  \"bearish\": 0,\n  \"neutral\": 2,\n  \"bullish\": 4,\n  \"extremely_bullish\": 4,\n  \"topic_counts\": {\n    \"Adoption\": 4,\n    \"Market Analysis\": 3,\n    \"Innovation\": 3\n  },\n  \"top_articles\": [\n    {\n      \"title\": \"ETH bull market is coming, GoldenMining launches ETH contract to release $8,700 per day\",\n      \"link\": \"https://www.globenewswire.com/fr/news-release/2025/07/18/3118219/0/en/ETH-bull-market-is-coming-GoldenMining-launches-ETH-contract-to-release-8-700-per-day.html\",\n      \"sentiment_score\": 0.9,\n      \"sentiment_label\": \"extremely_bullish\",\n      \"pub_date\": \"2025-07-19 00:45:00\"\n    },\n    ...\n  ]\n}\n```\n\n---\n\n### **Expected Output Format:**\n\n```json\n{\n  \"symbol_id\": 3,\n  \"timestamp\": \"2025-07-19T16:05:30.000Z\",\n  \"sentiment_score\": \"0.5650\",\n  \"confidence_score\": \"0.7850\",\n  \"sentiment_label\": \"bullish\",\n  \"extremely_bearish\": 0,\n  \"bearish\": 0,\n  \"neutral\": 2,\n  \"bullish\": 4,\n  \"extremely_bullish\": 4,\n  \"topic_counts\": {\n    \"Adoption\": 4,\n    \"Market Analysis\": 3,\n    \"Innovation\": 3\n  },\n  \"top_articles\": [\n    {\n      \"title\": \"ETH bull market is coming, GoldenMining launches ETH contract to release $8,700 per day\",\n      \"link\": \"https://www.globenewswire.com/fr/news-release/2025/07/18/3118219/0/en/ETH-bull-market-is-coming-GoldenMining-launches-ETH-contract-to-release-8-700-per-day.html\",\n      \"sentiment_score\": 0.9,\n      \"sentiment_label\": \"extremely_bullish\",\n      \"pub_date\": \"2025-07-19 00:45:00\"\n    },\n    ...\n  ],\n  \"recent_trends\": {\n    \"description\": \"<5–8 lines summary of news tone and key events>\",\n    \"market_outlook\": \"<5–8 lines projection and outlook>\"\n  }\n}\n```\n\n\n---\n\n### **Instruction:**\n\nGenerate all the fields in the exact output structure above. Use all provided data points (sentiment_score, sentiment_label, topic_counts, top_articles). Write in a highly professional, analytical, and insight-driven tone, ensuring that the analysis is also accessible and easy to understand for beginners. Explain key financial terms and sentiment implications when necessary, while maintaining a concise yet authoritative narrative.\n\n"
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.9,
+        "position": [
+          500,
+          440
+        ],
+        "id": "cef24045-1de3-4f1e-a076-b9ce09dbe3cd",
+        "name": "Daily Sentiment Analysis",
+        "executeOnce": true,
+        "retryOnFail": true,
+        "maxTries": 5,
+        "waitBetweenTries": 5000
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.3,
+        "position": [
+          1340,
+          440
+        ],
+        "id": "6429a48d-1a35-4543-a4cd-65cf47d727c2",
+        "name": "Respond to Webhook1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "analytics_newssentimentdata",
+            "mode": "list",
+            "cachedResultName": "analytics_newssentimentdata"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "sentiment_score": "={{ $json.sentiment_score ? $json.sentiment_score : 0 }}",
+              "confidence_score": "={{ $json.confidence_score }}",
+              "symbol_id": "={{ $json.symbol_id }}",
+              "article_id": "={{ $json.id }}",
+              "timestamp": "={{ $json.pub_date }}",
+              "description": "={{ $json.description ? $json.description : \"No description available\" }}\n",
+              "title": "={{ $json.title }}",
+              "url": "={{ $json.link }}",
+              "sentiment_label": "={{ $json.sentiment_label }}",
+              "summary": "={{ $json.summary }}",
+              "source": "={{ $json.source }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "article_id",
+                "displayName": "article_id",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "timestamp",
+                "displayName": "timestamp",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "dateTime",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "source",
+                "displayName": "source",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "description",
+                "displayName": "description",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "title",
+                "displayName": "title",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "url",
+                "displayName": "url",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "sentiment_score",
+                "displayName": "sentiment_score",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "sentiment_label",
+                "displayName": "sentiment_label",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "confidence_score",
+                "displayName": "confidence_score",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "summary",
+                "displayName": "summary",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "symbol_id",
+                "displayName": "symbol_id",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          -220,
+          260
+        ],
+        "id": "8ac338b2-258f-4f43-8787-95f86e15d976",
+        "name": "News Sentiment Data",
+        "credentials": {
+          "postgres": {
+            "id": "<use-n8n-credential-id>",
+            "name": "Postgres account"
+          }
+        },
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "analytics_dailysentimentdata",
+            "mode": "list",
+            "cachedResultName": "analytics_dailysentimentdata"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "sentiment_score": "={{ $json.sentiment_score }}",
+              "confidence_score": "={{ $json.confidence_score }}",
+              "symbol_id": "={{ $json.symbol_id }}",
+              "bearish": "={{ $json.bearish }}",
+              "extremely_bearish": "={{ $json.extremely_bearish }}",
+              "extremely_bullish": "={{ $json.extremely_bullish }}",
+              "neutral": "={{ $json.neutral }}",
+              "sentiment_label": "={{ $json.sentiment_label }}",
+              "bullish": "={{ $json.bullish }}",
+              "timestamp": "={{ $json.timestamp }}"
+            },
+            "matchingColumns": [
+              "id"
+            ],
+            "schema": [
+              {
+                "id": "timestamp",
+                "displayName": "timestamp",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "dateTime",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "sentiment_score",
+                "displayName": "sentiment_score",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "sentiment_label",
+                "displayName": "sentiment_label",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "confidence_score",
+                "displayName": "confidence_score",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "symbol_id",
+                "displayName": "symbol_id",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "id",
+                "displayName": "id",
+                "required": false,
+                "defaultMatch": true,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "bearish",
+                "displayName": "bearish",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "bullish",
+                "displayName": "bullish",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "extremely_bearish",
+                "displayName": "extremely_bearish",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "extremely_bullish",
+                "displayName": "extremely_bullish",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "neutral",
+                "displayName": "neutral",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          320,
+          260
+        ],
+        "id": "f8cefc9c-883b-4572-bc23-f3d3102f3f3b",
+        "name": "Daily Sentiment Data",
+        "credentials": {
+          "postgres": {
+            "id": "c4xNZGm6dRDgjIj1",
+            "name": "Postgres account"
+          }
+        },
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "// // Get all articles for a single symbol\nconst articles = $input.all().map(item => item.json);\nconst ticker = $('Set Variables').first().json.stockSymbol;\n\nif (articles.length === 0) {\n  return [{ json: { message: \"No news articles in last 24h.\" } }];\n}\n\n// Calculate average sentiment scores (weighted)\nconst scores = articles\n  .filter(a => a.sentiment_score !== null && a.sentiment_score !== undefined)\n  .map(a => a.sentiment_score);\n\nconst confidences = articles\n  .filter(a => a.confidence_score !== null && a.confidence_score !== undefined)\n  .map(a => a.confidence_score);\n\n// === ממוצע משוקלל לפי confidence ===\nlet avgScore = null;\nif (scores.length && confidences.length && scores.length === confidences.length) {\n  const weightedSum = scores.reduce((sum, score, i) => sum + score * confidences[i], 0);\n  const totalWeight = confidences.reduce((sum, val) => sum + val, 0);\n  avgScore = totalWeight > 0 ? weightedSum / totalWeight : null;\n}\n\n// ממוצע רגיל של confidence (כפי שהיה בקוד המקורי)\nconst avgConf = confidences.length\n  ? confidences.reduce((sum, val) => sum + val, 0) / confidences.length\n  : null;\n\n// Count sentiment labels\nconst sentimentCounts = {\n  \"extremely_bearish\": 0,\n  \"bearish\": 0,\n  \"neutral\": 0,\n  \"bullish\": 0,\n  \"extremely_bullish\": 0\n};\n\nfor (const a of articles) {\n  if (a.sentiment_label && sentimentCounts.hasOwnProperty(a.sentiment_label)) {\n    sentimentCounts[a.sentiment_label]++;\n  }\n}\n\n// Count topics\nconst topicCounts = {};\nfor (const a of articles) {\n  const topic = a.topic || \"Other\";\n  topicCounts[topic] = (topicCounts[topic] || 0) + 1;\n}\n\n// Determine sentiment_label based on avgScore\nlet sentimentLabel = null;\nif (avgScore !== null) {\n  if (avgScore <= -0.75) sentimentLabel = 'extremely bearish';\n  else if (avgScore <= -0.25) sentimentLabel = 'bearish';\n  else if (avgScore < 0.25) sentimentLabel = 'neutral';\n  else if (avgScore <= 0.75) sentimentLabel = 'bullish';\n  else sentimentLabel = 'extremely bullish';\n}\n\n// Get top 5 most extreme articles (by absolute sentiment_score)\nconst topArticles = [...articles]\n  .sort((a, b) => Math.abs((b.sentiment_score || 0)) - Math.abs((a.sentiment_score || 0)))\n  .slice(0, 5)\n  .map(a => ({\n    title: a.title || \"\",\n    desc: a.description || \"\",\n    link: a.link || \"\",\n    sentiment_score: a.sentiment_score,\n    sentiment_label: a.sentiment_label,\n    pub_date: a.pub_date || null\n  }));\n\n// Use the symbol_id from the first article\nconst symbolId = articles[0].symbol_id;\n\n// Israel-aware timestamp logic\nconst now = new Date();\nconst israelTime = new Date(now.toLocaleString(\"en-US\", { timeZone: \"Asia/Jerusalem\" }));\nconst hour = israelTime.getHours();\n\nconst fixedTimestamp = new Date(israelTime);\nif (hour >= 18 || hour < 6) {\n  // בתוך טווח 6 שעות מחצות\n  fixedTimestamp.setHours(0, 0, 0, 0);\n} else {\n  // אחרת – קבע לשעה 12:00\n  fixedTimestamp.setHours(12, 0, 0, 0);\n}\n\nreturn [\n  {\n    json: {\n      ticker: ticker,\n      symbol_id: symbolId,\n      timestamp: fixedTimestamp.toISOString(),\n      sentiment_score: avgScore !== null ? avgScore.toFixed(4) : null,\n      confidence_score: avgConf !== null ? avgConf.toFixed(4) : null,\n      sentiment_label: sentimentLabel,\n      ...sentimentCounts,\n      topic_counts: topicCounts,\n      top_articles: topArticles\n    }\n  }\n];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          100,
+          440
+        ],
+        "id": "1a7e8250-c695-4241-b943-e64eb576dc41",
+        "name": "Daily Score Calc",
+        "alwaysOutputData": true,
+        "executeOnce": false
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nitems.forEach(item => {\n  const score = typeof item.json.sentiment_score === 'number' ? item.json.sentiment_score : null;\n\n  if (score === null) {\n    item.json.sentiment_label = \"unknown\";\n  } else if (score <= -0.75) {\n    item.json.sentiment_label = \"extremely_bearish\";\n  } else if (score <= -0.25) {\n    item.json.sentiment_label = \"bearish\";\n  } else if (score < 0.25) {\n    item.json.sentiment_label = \"neutral\";\n  } else if (score < 0.75) {\n    item.json.sentiment_label = \"bullish\";\n  } else if (score > 0.5) {\n    item.json.sentiment_label = \"extremely_bullish\";\n  } else {\n    item.json.sentiment_label = \"unknown\";\n  }\n});\n\nreturn items;"
+        },
+        "name": "Flatten Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 1,
+        "position": [
+          -520,
+          440
+        ],
+        "id": "8a72c833-291f-4925-b692-2efbdf501b87",
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.all().map(item => item.json);\nconst symbol = $(\"Set Variables\").first().json.stockSymbol;\n\n// מיפוי מזהה סימבול למספר\nconst dict = {\n  1: \"BTC\",\n  2: \"ETH\",\n  3: \"SOL\",\n  4: \"XRP\",\n  6: \"LTC\"\n};\n\n// המרה של סימבול לשם ID מספרי\nlet symbolId = symbol;\nif (Object.values(dict).includes(symbol)) {\n  const found = Object.entries(dict).find(([_, value]) => value === symbol);\n  if (found) {\n    symbolId = parseInt(found[0]);\n  }\n}\n\nif (isNaN(symbolId)) {\n  throw new Error(\"Invalid symbolId for symbol: \" + symbol);\n}\n\nlet result = [];\nlet seenIds = new Set();\nlet successCount = 0;\nlet errorCount = 0;\n\n// פונקציה לנרמל אייטם בודד\nfunction normalizeItem(item) {\n  const id = item.article_id || item.id;\n  if (!id || seenIds.has(id)) {\n    return null;\n  }\n\n  seenIds.add(id);\n\n  return {\n    id: id,\n    symbol_id: symbolId,\n    title: item.title || \"\",\n    description: item.description || \"No description available\",\n    pub_date: item.pubDate || null,\n    kind: item.kind || \"news\",\n    link: item.link || null,\n    sentiment_score: typeof item.sentiment_score === 'number' ? item.sentiment_score : 0,\n    confidence_score: typeof item.confidence_score === 'number' ? item.confidence_score : 0,\n    sentiment_label: item.sentiment_label || \"neutral\",\n    topic: item.topic || \"other\",\n    summary: item.summary || null,\n    source: item.creator || null,\n  };\n}\n\n// עיבוד כל הנתונים\nfor (const obj of data) {\n  const raw = obj?.message?.content || obj?.content || obj?.text;\n\n  if (!raw) {\n    errorCount++;\n    continue;\n  }\n\n  // חילוץ JSON מתוך ```json ... ```\n  let jsonString;\n  const blockMatch = raw.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n  if (blockMatch && blockMatch[1]) {\n    jsonString = blockMatch[1].trim();\n  } else {\n    jsonString = raw.trim();\n  }\n\n  // הסרת + ממספרים\n  jsonString = jsonString.replace(/([:\\[,\\s])\\+(\\d+(?:\\.\\d+)?)/g, '$1$2');\n\n  let parsed;\n  try {\n    parsed = JSON.parse(jsonString);\n  } catch (e) {\n    console.error(\"JSON parsing error:\", e.message);\n    console.log(\"Invalid string:\", jsonString);\n    errorCount++;\n    continue;\n  }\n\n  // עיבוד כללי\n  if (Array.isArray(parsed)) {\n    for (const item of parsed) {\n      const norm = normalizeItem(item);\n      if (norm) {\n        result.push(norm);\n        successCount++;\n      } else {\n        errorCount++;\n      }\n    }\n  } else {\n    const norm = normalizeItem(parsed);\n    if (norm) {\n      result.push(norm);\n      successCount++;\n    } else {\n      errorCount++;\n    }\n  }\n}\n\n// החזרה רגילה\nconst output = result.map(item => ({ json: item }));\n\nreturn output;"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -260,
+          620
+        ],
+        "id": "9bb9404b-0cae-424d-9a5c-8451ee5e9ec9",
+        "name": "Parse",
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "// Node: Code\n// Goal: Efficiently filter for new and unique articles to be processed.\n//\n// This script performs two main filtering steps:\n// 1. Removes articles that already exist in the database (by article_id).\n// 2. Deduplicates the remaining articles based on content similarity (title + description)\n//    to avoid processing multiple stories covering the same topic.\n\n// --- Configuration ---\n// The similarity score above which an article is considered a duplicate.\n// Jaccard similarity ranges from 0 (no similarity) to 1 (identical).\n// A value of 0.7 means the articles share at least 70% of their unique words.\nconst SIMILARITY_THRESHOLD = 0.7;\n\n// --- Helper Functions ---\n\n/**\n * Normalizes text for comparison by converting to lowercase, removing\n * most punctuation, and standardizing whitespace.\n * @param {string | null | undefined} text The input string.\n * @returns {string} The normalized string.\n */\nconst normalizeText = (text) => {\n  if (!text) return '';\n  return text\n    .toLowerCase()\n    .replace(/[^a-z0-9\\s]/gi, ' ') // Keep alphanumeric chars and spaces\n    .replace(/\\s+/g, ' ')\n    .trim();\n};\n\n/**\n * Calculates the Jaccard similarity between two sets of words.\n * This measures the overlap between two sets.\n * @param {Set<string>} setA A set of words from the first article.\n * @param {Set<string>} setB A set of words from the second article.\n * @returns {number} The Jaccard similarity score (0 to 1).\n */\nconst jaccardSimilarity = (setA, setB) => {\n  const intersectionSize = new Set([...setA].filter(word => setB.has(word))).size;\n  const unionSize = new Set([...setA, ...setB]).size;\n  \n  // Avoid division by zero if both articles have no words after normalization.\n  return unionSize === 0 ? 0 : intersectionSize / unionSize;\n};\n\n\n// --- Main Logic ---\n\n// Step 1: Get existing article IDs from the database check node.\n// A Set provides fast O(1) average time complexity for lookups, which is highly efficient.\nconst existingIds = new Set(\n  $(\"Check If Exists\").all().map(item => item.json.article_id)\n);\n\n// Step 2: Get all candidate articles from the input node.\nconst allArticles = $(\"JSON for GPT\").all();\n\n// Step 3: Perform the first, most efficient filtering pass.\n// This removes any articles that are already in the database.\nconst newArticles = allArticles.filter(item => !existingIds.has(item.json.article_id));\n\n// Step 4: Pre-process the new articles for the expensive similarity check.\n// By creating word sets here, we avoid redundant computation inside the loop.\nconst articlesToCompare = newArticles.map(article => {\n  const textContent = `${article.json.title ?? ''} ${article.json.description ?? ''}`;\n  return {\n    wordSet: new Set(normalizeText(textContent).split(' ')),\n    originalItem: article, // Preserve the original n8n item\n  };\n});\n\n// Step 5: Deduplicate based on content similarity.\n// NOTE: This loop has a complexity of O(N^2), which can be slow if you have\n// thousands of new articles per run. It is generally fine for a few hundred.\nconst uniqueArticleData = [];\nfor (const currentArticle of articlesToCompare) {\n  // Check if the current article is too similar to any already added to our unique list.\n  const isDuplicate = uniqueArticleData.some(existingArticle =>\n    jaccardSimilarity(currentArticle.wordSet, existingArticle.wordSet) > SIMILARITY_THRESHOLD\n  );\n\n  if (!isDuplicate) {\n    uniqueArticleData.push(currentArticle);\n  }\n}\n\n// Step 6: Return the final list of unique n8n items.\n// Map the filtered data back to the original n8n item structure.\nreturn uniqueArticleData.map(data => data.originalItem);"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1080,
+          600
+        ],
+        "id": "ba2c1054-fc92-4352-8677-1863d78016bb",
+        "name": "Filter Articles"
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-4o-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-4O-MINI"
+          },
+          "messages": {
+            "values": [
+              {
+                "content": "=**Prompt:**\n\nYou are a seasoned financial sentiment analyst with deep expertise in interpreting market-moving news, geopolitical events, and economic indicators. Your task is to perform **precise and context-aware sentiment analysis** of financial articles.\n\n**Follow these detailed instructions:**\n\n---\n\n### **1. Content Analysis:**\n\n* Assess explicit statements about market conditions, corporate performance, or economic trends.\n* Identify implicit signals (e.g., cautious optimism, skepticism, overt pessimism).\n* Consider sector-specific implications (e.g., tech disruptions, regulatory shifts).\n\n### **2. Tone & Framing:**\n\n* Determine whether language is hyperbolic, measured, or ambiguous.\n* Evaluate journalistic bias (e.g., sensationalism, understatement).\n* Consider psychological cues (e.g., fear-driven narratives, euphoric projections).\n\n### **3. Contextual Relevance:**\n\n* Weigh the broader economic or geopolitical context (e.g., interest rate changes, trade wars).\n* Assess source credibility (e.g., expert opinions vs. speculative claims).\n\n### **4. Sentiment Scoring:**\n\n* Assign a **sentiment\\_score** between **–1 (extremely bearish)** and **+1 (extremely bullish)** with fine granularity (e.g., –0.3 for mild pessimism).\n* Provide a **confidence\\_score** (0–1) reflecting the clarity and strength of evidence supporting the sentiment.\n\n### **5. Topic Classification:**\n\n* Identify the article's main subject and classify it into **one of the categories**:\n  **\\[\"Institutional Investment\", \"Regulation\", \"Market Analysis\", \"Technology\", \"Trading\", \"Adoption\", \"Security\", \"Innovation\"]**.\n* If no category fits, provide a **custom topic** (1–3 words).\n\n### **6. Summary:**\n\n* Write a **2–3 sentence summary** explaining the article’s tone and impact, and why you assigned that sentiment score.\n\n---\n\n### **Input Format:**\n\n```json\n[\n  {\n    \"article_id\": {{ $json.article_id }},\n    \"title\": {{ $json.title }},\n    \"description\": {{ $json.description }},\n    \"pubData\": {{ $json.pubDate }},\n    \"creator\": {{ $json.creator }},\n    \"link\": {{ $json.link }}\n  },\n  ...\n]\n```\n\n---\n\n### **Output Format (Strict JSON):**\n\n> **Return only valid JSON. Do not include explanations or text outside of the JSON array.**\n\n```json\n[\n  {\n    \"article_id\": {{ $json.article_id }},\n    \"title\": {{ $json.title }},\n    \"description\": {{ $json.description }},\n    \"pubData\": {{ $json.pubDate }},\n    \"creator\": {{ $json.creator }},\n    \"link\": {{ $json.link }},\n    \"sentiment_score\": your given score,\n    \"confidence_score\": your given score,\n    \"topic\": \"Main topic or category\",\n    \"summary\": \"A 2–3 sentence summary describing tone, context, and impact leading to the score.\"\n  }\n]\n```\n\n---\n\n**Analyze each article according to the above framework and return JSON output only. Ensure the sentiment and topic are both accurate and actionable for trading and research purposes.**\n",
+                "role": "system"
+              },
+              {
+                "content": "=  Here is a batch of news and media items:\n{{ JSON.stringify($('Loop Over Items').all()) }}"
+              }
+            ]
+          },
+          "options": {
+            "frequency_penalty": 0,
+            "presence_penalty": 0,
+            "temperature": 0,
+            "topP": 1
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 1.8,
+        "position": [
+          -660,
+          620
+        ],
+        "id": "abae566c-4db0-496d-94b9-f9077d0a689e",
+        "name": "Sentiment Analysis",
+        "executeOnce": true,
+        "retryOnFail": true,
+        "waitBetweenTries": 5000,
+        "maxTries": 5,
+        "credentials": {
+          "openAiApi": {
+            "id": "N8oInDsQgSB1cWCh",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT article_id FROM analytics_newssentimentdata\nWHERE article_id = ANY(ARRAY[{{ $json[\"all_ids\"].map(id => `'${id}'`).join(', ') }}]::text[]);\n",
+          "options": {
+            "queryReplacement": "={{ $json[\"all_ids\"] }}"
+          }
+        },
+        "name": "Check If Exists",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          -1260,
+          600
+        ],
+        "id": "6d60b655-b29b-4e7c-9eff-9e6560483a77",
+        "credentials": {
+          "postgres": {
+            "id": "c4xNZGm6dRDgjIj1",
+            "name": "Postgres account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Get the raw object from input\nlet raw = $input.first().json.output || $input.first().json;\n\n// If raw is already an object, return it directly\nif (typeof raw !== \"string\") {\n  return [{ json: raw }];\n}\n\n// Remove extra formatting like ```json ... ``` if present\nraw = raw.replace(/^```json\\s*/i, \"\").replace(/```$/i, \"\").trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  throw new Error(\"Failed to parse JSON: \" + e.message + \"\\nRaw content: \" + raw);\n}\n\n// Return the parsed JSON\nreturn [{ json: parsed }];\n\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          440
+        ],
+        "id": "ae0b3d5d-9b6e-4289-9b6f-0222a721a0e9",
+        "name": "Code"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "6Z8H4r8PzeY0Vksy",
+            "mode": "list",
+            "cachedResultName": "technical-analysis"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {},
+            "matchingColumns": [],
+            "schema": [],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": true
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.2,
+        "position": [
+          1100,
+          440
+        ],
+        "id": "33aa6469-2aab-4881-9758-f0c8f83cf9ee",
+        "name": "Execute Workflow"
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.all().map(item => item.json);\nconst symbol = $(\"Set Variables\").first().json.stockSymbol;\n\nlet result = [];\nlet seenIds = new Set();\nlet successCount = 0;\nlet errorCount = 0;\n\n// פונקציה לנרמל אייטם בודד\nfunction normalizeItem(item) {\n  const id = item.article_id || item.id;\n  if (!id || seenIds.has(id)) {\n    return null;\n  }\n\n  seenIds.add(id);\n\n  return {\n    id: id,\n    symbol: symbol || null,\n    title: item.title || \"\",\n    description: item.description || \"No description available\",\n    pub_date: item.pubDate || null,\n    kind: item.kind || \"news\",\n    link: item.link || null,\n    sentiment_score: typeof item.sentiment_score === 'number' ? item.sentiment_score : 0,\n    confidence_score: typeof item.confidence_score === 'number' ? item.confidence_score : 0,\n    sentiment_label: item.sentiment_label || \"neutral\",\n    topic: item.topic || \"other\",\n    summary: item.summary || null,\n    source: item.creator || null,\n  };\n}\n\n// עיבוד כל הנתונים\nfor (const obj of data) {\n  const raw = obj?.message?.content || obj?.content || obj?.text;\n\n  if (!raw) {\n    errorCount++;\n    continue;\n  }\n\n  // חילוץ JSON מתוך ```json ... ```\n  let jsonString;\n  const blockMatch = raw.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n  if (blockMatch && blockMatch[1]) {\n    jsonString = blockMatch[1].trim();\n  } else {\n    jsonString = raw.trim();\n  }\n\n  // הסרת + ממספרים\n  jsonString = jsonString.replace(/([:\\[,\\s])\\+(\\d+(?:\\.\\d+)?)/g, '$1$2');\n\n  let parsed;\n  try {\n    parsed = JSON.parse(jsonString);\n  } catch (e) {\n    console.error(\"JSON parsing error:\", e.message);\n    console.log(\"Invalid string:\", jsonString);\n    errorCount++;\n    continue;\n  }\n\n  // עיבוד כללי\n  if (Array.isArray(parsed)) {\n    for (const item of parsed) {\n      const norm = normalizeItem(item);\n      if (norm) {\n        result.push(norm);\n        successCount++;\n      } else {\n        errorCount++;\n      }\n    }\n  } else {\n    const norm = normalizeItem(parsed);\n    if (norm) {\n      result.push(norm);\n      successCount++;\n    } else {\n      errorCount++;\n    }\n  }\n}\n\n// החזרה רגילה\nconst output = result.map(item => ({ json: item }));\n\nreturn output;\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -40,
+          680
+        ],
+        "id": "bab23ce6-bd16-4cfe-9a75-a1b6211352c6",
+        "name": "Code stock",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsonSchemaExample": "[\n  {\n    \"ticker\": \"BTC\",\n    \"symbol_id\": 1,\n    \"timestamp\": \"2025-08-06T00:00:00.000Z\",\n    \"sentiment_score\": \"0.8000\",\n    \"confidence_score\": \"0.9000\",\n    \"sentiment_label\": \"extremely bullish\",\n    \"extremely_bearish\": 0,\n    \"bearish\": 0,\n    \"neutral\": 0,\n    \"bullish\": 0,\n    \"extremely_bullish\": 1,\n    \"topic_counts\": {\n      \"Market Analysis\": 27,\n      \"Adoption\": 7,\n      \"Innovation\": 10,\n      \"Regulation\": 1,\n      \"Institutional Investment\": 1,\n      \"Custom topic\": 1,\n      \"custom topic\": 2\n    },\n    \"top_articles\": [\n      {\n        \"title\": \"Upbit PROVE Listing: Exciting New Trading Pairs Arrive August 6\",\n        \"desc\": \"BitcoinWorldUpbit PROVE Listing: Exciting New Trading Pairs Arrive August 6The crypto world is buzzing with anticipation! South Korean powerhouse crypto exchange Upbit has just dropped exciting news: the Upbit PROVE listing is officially happening. Traders and enthusiasts are gearing up for the arrival of new spot trading pairs for the PROVE token, a significant development for the digital asset landscape. What Does the Upbit [...]This post Upbit PROVE Listing: Exciting New Trading Pairs Arrive August 6 first appeared on BitcoinWorld and is written by Editorial Team\",\n        \"link\": \"https://bitcoinworld.co.in/upbit-prove-listing-august/\",\n        \"sentiment_score\": 0.8,\n        \"sentiment_label\": \"extremely_bullish\",\n        \"pub_date\": \"2025-08-06 06:45:10\"\n      }\n    ],\n    \"recent_trends\": {\n      \"description\": \"The sentiment surrounding Bitcoin (BTC) is overwhelmingly positive, characterized by an 'extremely bullish' label and a high sentiment score of 0.8000. With a single article driving this sentiment, the focus is on the recent Upbit PROVE listing, which has generated excitement in the trading community. This development is expected to enhance BTC's visibility and trading pair options, a narrative that aligns with the broader topic of adoption within the cryptocurrency space.\",\n      \"market_outlook\": \"Given the strong 'extremely bullish' sentiment and a high confidence score of 0.9000, the outlook for Bitcoin suggests a potential upward price movement in the short term. The positive engagement from new trading opportunities could attract more investors, fostering greater adoption and market participation. As the narrative of adoption continues to evolve, BTC may see increased trading volume and interest, positioning it favorably for the upcoming market phases.\"\n    }\n  }\n]"
+        },
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.2,
+        "position": [
+          760,
+          680
+        ],
+        "id": "e8041ddf-4071-4512-a2f3-741751f98739",
+        "name": "Structured Output Parser",
+        "disabled": true
+      }
+    ],
+    "connections": {
+      "Generate Variables For API": {
+        "main": [
+          [
+            {
+              "node": "Set Variables",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get News Data": {
+        "main": [
+          [
+            {
+              "node": "Add News",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Variables": {
+        "main": [
+          [
+            {
+              "node": "Set nextPage",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Next Page1": {
+        "main": [
+          [
+            {
+              "node": "JSON for GPT",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Wait",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Add News": {
+        "main": [
+          [
+            {
+              "node": "Check Next Page1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait": {
+        "main": [
+          [
+            {
+              "node": "Set nextPage",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set nextPage": {
+        "main": [
+          [
+            {
+              "node": "Get News Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "JSON for GPT": {
+        "main": [
+          [
+            {
+              "node": "Extract All IDs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items": {
+        "main": [
+          [
+            {
+              "node": "Flatten Results",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Sentiment Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Data.io Params": {
+        "main": [
+          [
+            {
+              "node": "Generate Variables For API",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook": {
+        "main": [
+          []
+        ]
+      },
+      "On form submission": {
+        "main": [
+          [
+            {
+              "node": "Set Data.io Params",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract All IDs": {
+        "main": [
+          [
+            {
+              "node": "Check If Exists",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI Chat Model1": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Daily Sentiment Analysis",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Daily Sentiment Analysis": {
+        "main": [
+          [
+            {
+              "node": "Code",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "News Sentiment Data": {
+        "main": [
+          []
+        ]
+      },
+      "Daily Sentiment Data": {
+        "main": [
+          []
+        ]
+      },
+      "Daily Score Calc": {
+        "main": [
+          [
+            {
+              "node": "Daily Sentiment Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Flatten Results": {
+        "main": [
+          [
+            {
+              "node": "Daily Score Calc",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter Articles": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sentiment Analysis": {
+        "main": [
+          [
+            {
+              "node": "Parse",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check If Exists": {
+        "main": [
+          [
+            {
+              "node": "Filter Articles",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code": {
+        "main": [
+          [
+            {
+              "node": "Execute Workflow",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute Workflow": {
+        "main": [
+          []
+        ]
+      },
+      "Code stock": {
+        "main": [
+          []
+        ]
+      },
+      "Structured Output Parser": {
+        "ai_outputParser": [
+          []
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "3fbcda4c054baf3420fff33d904e66bec4d04f59505e1e071d6362b8c29258ba"
+    }
+  }

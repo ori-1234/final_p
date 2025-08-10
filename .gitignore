@@ -23,9 +23,17 @@ dist/
 # Virtual environments
 venv/
 back/venv/
+# Ignore any .env files anywhere
+.env
 .env/
 .env.*
+back/.env
+back/.env.*
+front/.env
+front/.env.*
 !.env.example
+!front/.env.example
+!back/.env.example
 .envrc
 
 # Django media/static (generated)
